@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CityCube Warehousing – Storage Manager</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#eef5fa;--card:#fff;--tx:#14284f;--mut:#5d6f8c;--bd:#d3e0ec;--nv:#1b3a78;--ac:#3fb4d4;--bl:#2f8fc0;--ok:#157a55;--wr:#c0392b;--hd:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1626;--card:#16223a;--tx:#e6eefb;--mut:#9fb0cc;--bd:#2a3b5c;--nv:#5b8be0;--hd:#16223a}}
+:root[data-theme=dark]{--bg:#0e1626;--card:#16223a;--tx:#e6eefb;--mut:#9fb0cc;--bd:#2a3b5c;--nv:#5b8be0;--hd:#16223a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:var(--hd);border-bottom:4px solid var(--ac);padding:8px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header img{height:58px;background:#fff;border-radius:6px}header small{color:var(--mut);display:block}header h1{margin:0;font-size:18px;color:var(--nv)}
+nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:transparent;color:var(--nv);border:1px solid var(--bd);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+nav button.on{background:linear-gradient(90deg,var(--nv),var(--bl));border-color:transparent;color:#fff}
+main{max-width:1040px;margin:0 auto;padding:16px}
+fieldset{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:0 0 14px;padding:14px 16px}
+legend{font-weight:700;color:var(--bl);padding:0 6px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 14px}
+.w2{grid-column:span 2}@media(max-width:520px){.w2{grid-column:span 1}}
+label{display:block;font-size:12px;color:var(--mut);font-weight:600}
+input,select,textarea{width:100%;margin-top:3px;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+input[readonly]{font-weight:700;color:var(--nv)}
+.chk{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}.chk label{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--tx);font-weight:500}.chk input{width:auto;margin:0}
+.btn{background:linear-gradient(90deg,var(--bl),var(--ac));color:#fff;border:0;padding:10px 18px;border-radius:9px;font-weight:700;cursor:pointer;font-size:14px}
+.btn.s{background:var(--nv)}.btn.o{background:transparent;color:var(--nv);border:1px solid var(--bd);padding:6px 10px;font-size:12px}.btn.w{background:var(--wr)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--bg);padding:10px 0;align-items:center}
+.th{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.th div{position:relative}.th img{height:70px;border-radius:6px;border:1px solid var(--bd);display:block}
+.th b{position:absolute;top:-6px;right:-6px;background:var(--wr);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;font-size:12px;cursor:pointer;line-height:18px}
+.calc{background:linear-gradient(90deg,var(--nv),var(--bl));color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}.calc div{font-size:12px;opacity:.95}.calc b{display:block;font-size:17px;color:#bff0ff}
+.st{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}.st div{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--mut)}.st b{display:block;font-size:20px;color:var(--nv)}
+table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:left;font-size:13px}th{background:var(--nv);color:#fff}
+.tw{overflow-x:auto;border-radius:10px;border:1px solid var(--bd)}.tag{padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:var(--bd)}.tag.ok{background:#157a5526;color:var(--ok)}.tag.od{background:#c0392b26;color:var(--wr)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--nv);color:#fff;padding:10px 18px;border-radius:9px;display:none;z-index:99;max-width:90%}
+#md{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50;padding:12px}#md>div{background:var(--card);border-radius:14px;padding:18px;max-width:520px;width:100%;max-height:92%;overflow:auto}
+#sheet{display:none}
+.sh{color:#000;background:#fff;font:11px Arial,sans-serif;padding:4px}.sh .hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #3fb4d4;padding-bottom:6px;margin-bottom:8px}.sh .hd img{height:62px}.sh .hd .co{flex:1;font-size:10px;color:#333}.sh .hd .co b{font-size:15px;color:#1b3a78}.sh .hd .rt{text-align:right}
+.sh h2{margin:0 0 6px;font-size:17px;color:#1b3a78;letter-spacing:1px;text-align:center}.sh table{width:100%;border-collapse:collapse;background:#fff;margin-bottom:6px}.sh td,.sh th{border:1px solid #aab;padding:4px 6px;font-size:11px;color:#000;background:#fff}.sh th{background:#1b3a78;color:#fff}.sh td.k{background:#e8f3fa;font-weight:700;width:17%}.sh .r{text-align:right}
+.sh .ph{display:flex;gap:6px;flex-wrap:wrap}.sh .ph img{height:78px;border:1px solid #999}.sh .sg{display:flex;gap:30px;margin-top:38px}.sh .sg div{flex:1;border-top:1px solid #000;padding-top:3px;text-align:center;font-size:10px}
+.plans{display:flex;gap:14px;flex-wrap:wrap}.pl{flex:1;min-width:300px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px}.pl h4{margin:0 0 8px;color:var(--nv)}
+.pg{display:flex;gap:6px;align-items:stretch}.pc{flex:1;display:flex;flex-direction:column;gap:5px}
+.ai{width:30px;background:repeating-linear-gradient(0deg,#0000,#0000 14px,#e0a80030 14px,#e0a80030 16px),var(--bg);border-radius:6px;font-size:9px;color:var(--mut);writing-mode:vertical-rl;display:flex;align-items:center;justify-content:center;letter-spacing:2px}
+.bay{border:1px solid var(--bd);border-radius:7px;background:var(--bg);padding:3px 5px;min-height:46px}.bay.ov{border-color:var(--wr);box-shadow:0 0 0 2px #c0392b44}.bay.dh{outline:2px dashed var(--ac)}
+.bt{display:flex;justify-content:space-between;font-size:10px;color:var(--mut)}.bt b{color:var(--nv)}
+.bb{display:flex;height:22px;border-radius:4px;background:#8882;overflow:hidden;margin-top:2px}.pc.r .bb{flex-direction:row-reverse}
+.sg2{height:100%;font-size:10px;color:#111;overflow:hidden;white-space:nowrap;padding:3px 4px;cursor:grab;border-right:1px solid #fff8}.sg2.od{outline:2px solid var(--wr);outline-offset:-2px}.sg2.sl{outline:2px solid var(--nv)}
+.pw{display:flex;flex-wrap:wrap;gap:2px;margin-top:3px}.pt{width:15px;height:15px;border-radius:3px;border:1px solid #0003;cursor:grab}.dim{opacity:.18}.pt.hl,.sg2.hl{outline:2px solid var(--wr);outline-offset:-1px}.cg{display:block;margin:4px 0;font-size:12px}.bb.thin{height:6px;margin-top:3px}.bay.pv .sg2{font-size:0}
+.dk{text-align:center;font-size:11px;color:var(--mut);margin-top:6px}.un{background:var(--card);border:2px dashed var(--bd);border-radius:12px;padding:10px;margin:10px 0}.un.dh{border-color:var(--ac)}
+.chip{display:inline-block;margin:3px;padding:5px 9px;border-radius:8px;background:var(--bg);border:1px solid var(--bd);border-left:6px solid;font-size:12px;cursor:grab}.chip.sl{outline:2px solid var(--nv)}
+.sh .lb{width:92mm;border:2px solid #1b3a78;border-radius:6px;padding:6px 8px;margin:0 4mm 4mm 0;display:inline-block;vertical-align:top;page-break-inside:avoid;font-size:11px;text-align:center}.sh .lb .lg{height:34px}.sh .lb .ci{font-size:20px;font-weight:700;color:#1b3a78}.sh .lb .lc{font-size:17px;font-weight:700;background:#e8f3fa;margin:4px 0;padding:3px}.sh .lb .qr{width:34mm;height:34mm}.sh .lb .fl{color:#c0392b;font-weight:700}
+.sh .fp{break-after:page;page-break-after:always}.sh .ag{font:6.9pt/1.24 Arial,sans-serif;color:#000}.sh .ag .agt{display:flex;align-items:center;gap:10px;border-bottom:3px solid #3fb4d4;padding-bottom:4px;margin-bottom:4px}.sh .ag .agt img{height:34px}.sh .ag h3{margin:0;font-size:11pt;color:#1b3a78}.sh .ag .agi{text-align:justify;margin:0 0 3px}.sh .ag .agk{border:1px solid #1b3a78;background:#e8f3fa;padding:2px 5px;margin:0 0 4px;font-size:6.8pt}
+.sh .ag .agc{column-count:2;column-gap:6mm;text-align:justify}.sh .ag .agc p{margin:0 0 3px;break-inside:avoid-column}.sh .ag .ack{border-top:2px solid #1b3a78;margin-top:4px;padding-top:3px;font-size:7pt}.sh .ag .sgn{display:flex;gap:16px;margin-top:20px}.sh .ag .sgn div{flex:1;border-top:1px solid #000;padding-top:2px;font-size:6.6pt;text-align:center}
+@media print{body{background:#fff!important}body>*:not(#sheet){display:none!important}#sheet{display:block!important}@page{margin:9mm}}
+</style></head><body>
+<header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v20 Firebase</small><small id="sy" style="font-weight:700"></small></div>
+<nav><button id="t1" class="on">New Entry</button><button id="t2">Records (<span id="cnt">0</span>)</button><button id="t4">Layout</button><button id="t3">Settings</button><button id="sv" hidden>⬇ Save last print</button></nav></header>
+<main>
+<section id="v1"><form onsubmit="return false">
+<fieldset><legend>Customer</legend><div class="g">
+<label>Customer ID (auto)<input id="cid" readonly></label>
+<label>Entry date<input type="date" id="edate"></label>
+<label class="w2">Customer / company name *<input id="name"></label>
+<label>Customer type<select id="ctype"><option>Individual</option><option>Company</option></select></label>
+<label>ID type<select id="idtype"><option>Emirates ID</option><option>Passport</option><option>Driving Licence</option><option>Trade Licence</option><option>Other</option></select></label>
+<label>ID number * <small>(returning customers auto-fill)</small><input id="idno"></label>
+<label>ID expiry<input type="date" id="idexp"></label>
+<label>Customer TRN (VAT, if any)<input id="trn"></label>
+<label>Upload ID picture<input type="file" id="idpic" accept="image/*"><div class="th" id="idth"></div></label>
+<label class="w2">Address<input id="addr"></label>
+<label>Mobile *<input id="mob" type="tel"></label>
+<label>Alternate mobile<input id="mob2" type="tel"></label>
+<label>Email<input id="email" type="email"></label>
+<label>Authorised pick-up person<input id="auth"></label>
+<label>Pick-up person ID / mobile<input id="authid"></label>
+</div></fieldset>
+<fieldset><legend>Storage &amp; Billing</legend><div class="g">
+<label>Date of inbound *<input type="date" id="din"></label>
+<label>Expected outbound date<input type="date" id="dout"></label>
+<label>Storage basis<select id="basis"><option value="CBM">CBM (cubic metre)</option><option value="SQF">SQF (square feet)</option></select></label>
+<label>Quantity (<span id="ql">CBM</span>)<input type="number" id="qty" min="0" step="0.01"></label>
+<label>Billing cycle<select id="cycle"><option>Daily</option><option selected>Monthly</option><option>Annually</option></select></label>
+<label>Rate per unit per cycle (AED)<input type="number" id="rate" min="0" step="0.01"></label>
+<label>Security deposit (AED)<input type="number" id="dep" min="0" step="0.01"></label>
+<label>Advance paid (AED)<input type="number" id="paid" min="0" step="0.01"></label>
+<label>Payment mode<select id="pmode"><option>Cash</option><option>Card</option><option>Bank transfer</option><option>Cheque</option></select></label>
+<label>Storage location (auto-filled from Layout)<input id="loc" placeholder="auto – or type manually"></label>
+</div>
+<div class="calc"><div>Chargeable period<b id="cp">–</b></div><div>Storage (excl. VAT)<b id="ec">AED 0.00</b></div><div>Incl. VAT<b id="ev">AED 0.00</b></div><div>Balance due<b id="bd">AED 0.00</b></div><div>Status<b id="stt">Active</b></div></div>
+</fieldset>
+<fieldset><legend>Goods</legend><div class="g">
+<label class="w2">Goods description *<textarea id="desc" rows="2"></textarea></label>
+<label>No. of packages / pallets<input type="number" id="pk" min="0"></label>
+<label>Total weight (kg)<input type="number" id="wt" min="0" step="0.1"></label>
+<label>Declared value (AED)<input type="number" id="val" min="0"></label>
+<label>Condition at receipt<select id="cond"><option>Good</option><option>Minor damage</option><option>Damaged</option></select></label>
+<label>Max item height (m)<input type="number" id="ht" min="0" step="0.01" placeholder="1 m or less allows mezzanine"></label><label>Invoice / Packing list / Ref<input id="ref"></label>
+<label>Received by (staff)<input id="staff"></label>
+<label class="w2">Goods pictures (add several – camera or gallery)<input type="file" id="gpic" accept="image/*" multiple><div class="th" id="gth"></div></label>
+<div class="w2"><label>Handling flags</label><div class="chk"><label><input type="checkbox" id="fr">Fragile</label><label><input type="checkbox" id="pe">Perishable</label><label><input type="checkbox" id="hz">Hazardous</label><label><input type="checkbox" id="ins">Insured by customer</label></div></div>
+<label class="w2">Remarks<textarea id="rem" rows="2"></textarea></label>
+</div></fieldset>
+<div class="bar"><button class="btn" id="save">💾 Save record</button><button class="btn s" id="pdf">🖨 Print intake form + agreement</button><button class="btn s" id="ob">📤 Outbound &amp; Tax Invoice</button><button class="btn s" id="po">📦 Partial outbound</button><button class="btn s" id="lbl">🏷 Pallet labels</button><button class="btn o" id="new">New entry</button></div>
+</form></section>
+
+<section id="v2" hidden>
+<div class="st" id="stats"></div>
+<div class="bar" style="position:static"><button class="btn s" id="rmd">🔔 Reminders (<span id="rmc">0</span>)</button><button class="btn s" id="mi">🧾 Monthly invoices</button><input id="q" placeholder="Search name, ID, mobile, location…" style="max-width:280px"><select id="sf" style="max-width:140px"><option value="">All status</option><option>Active</option><option>Overdue</option><option>Closed</option></select><button class="btn s" id="csv">⬇ CSV</button><button class="btn s" id="cpy">Copy for Sheets</button><button class="btn" id="sync">☁ Sync all to Google Sheet</button></div>
+<div class="tw"><table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Location</th><th>Size</th><th>In</th><th>Out</th><th>Storage</th><th>Status</th><th>Invoice</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</section>
+
+<section id="v4" hidden>
+<div class="st" id="lst"></div>
+<div class="bar" style="position:static"><button class="btn" id="la">⚡ Auto-allocate unplaced</button><button class="btn s" id="lr">♻ Repack all (preview)</button><button class="btn o" id="lun">↶ Undo</button><button class="btn o" id="lrl">↻ Reload shared layout</button><b id="lsy" style="font-size:12px"></b><label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--tx)"><input type="checkbox" id="lpm" checked style="width:auto;margin:0">Prefer mezzanine for low goods</label><label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--tx)"><input type="checkbox" id="lau" checked style="width:auto;margin:0">Auto-allocate on save</label><label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--tx)"><input type="checkbox" id="lpv" style="width:auto;margin:0">Pallet view</label><input id="lq" placeholder="Find customer…" style="max-width:170px"></div>
+<div id="lban"></div>
+<div class="un" id="unal"><b>To place</b> <span style="font-size:12px;color:var(--mut)">– drag a customer onto a bay, or tap a customer then tap a bay, or double-click to auto-place</span><div id="chips"></div></div>
+<div class="plans" id="plans"></div>
+<p style="font-size:12px;color:var(--mut)">Drag a coloured block to another bay to rearrange, drop it on the “To place” box to remove it, or click a block for options. Red outline = outbound overdue. Bay 1 is nearest the dock; short stays are placed near the dock, long stays deeper. 🔻 = low goods (mezzanine OK), ☣ = hazardous (gets a bay of its own).</p>
+</section>
+<section id="v3" hidden><fieldset><legend>Company &amp; Invoice Settings</legend><div class="g">
+<label class="w2">Company name<input id="s_co"></label><label>Company TRN<input id="s_trn"></label>
+<label class="w2">Address<input id="s_addr"></label><label>Phone<input id="s_ph"></label><label>Email<input id="s_em"></label>
+<label>VAT %<input type="number" id="s_vat" step="0.01"></label><label>Invoice prefix<input id="s_pre"></label>
+<label>Bays per side<input type="number" id="s_bays"></label><label>Bay width (m)<input type="number" id="s_bw" step="0.01"></label><label>Bay height (m)<input type="number" id="s_bh" step="0.01"></label><label>Bay depth (m)<input type="number" id="s_bd" step="0.01"></label><label>Mezzanine usable area per side (sqm)<input type="number" id="s_ma" step="0.01"></label><label>Mezzanine clear height (m)<input type="number" id="s_mh" step="0.01"></label><label>Trade licence no. (agreement)<input id="s_lic"></label><label>Courts (jurisdiction)<input id="s_court"></label><label>Liability cap per claim (AED)<input type="number" id="s_cap"></label><label>Late charge % per month<input type="number" id="s_late" step="0.01"></label><label>Grace days before late charge<input type="number" id="s_grace"></label><label>Days before unclaimed goods may be sold<input type="number" id="s_aband"></label><label>Deposit refund within (days)<input type="number" id="s_depd"></label><label>Notice period (days)<input type="number" id="s_noticed"></label><label>ID photo kept after closing (days)<input type="number" id="s_idret"></label><label>Default pallet size (CBM) when packages left blank<input type="number" id="s_pcbm" step="0.01"></label><label class="w2">Access key (must match KEY in the Apps Script – same on every device)<input id="s_key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label class="w2">Bank details (printed on invoice)<textarea id="s_bank" rows="2"></textarea></label>
+<label class="w2">Invoice footer note<input id="s_foot"></label>
+<label class="w2">Google Drive photo-script URL (Apps Script)<input id="s_hook" placeholder="https://script.google.com/macros/s/…/exec"></label>
+</div><div class="bar" style="position:static"><button class="btn" id="ss">Save settings</button><button class="btn o" id="slk">🔒 Lock settings</button><button class="btn s" id="st">Test Google Drive photo script</button></div></fieldset></section>
+</main>
+<div id="md"><div id="mdc"></div></div>
+<div id="sheet" class="sh"></div><div class="toast" id="toast"></div>
+<style id="shcss"></style>
+<script>
+const LOGO="data:image/jpeg;base64,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";$("lg")&&0;
+function $(id){return document.getElementById(id)}
+$("lg").src=LOGO;
+const F=["cid","edate","name","ctype","idtype","idno","idexp","trn","addr","mob","mob2","email","auth","authid","din","dout","basis","qty","cycle","rate","dep","paid","pmode","loc","desc","pk","wt","val","cond","ref","staff","rem"];
+const FL={cid:"Customer ID",edate:"Entry date",name:"Name",ctype:"Type",idtype:"ID type",idno:"ID number",idexp:"ID expiry",trn:"Customer TRN",addr:"Address",mob:"Mobile",mob2:"Alt mobile",email:"Email",auth:"Authorised pick-up",authid:"Pick-up ID/mobile",din:"Date inbound",dout:"Date outbound",basis:"Basis",qty:"Quantity",cycle:"Billing cycle",rate:"Rate (AED)",dep:"Deposit (AED)",paid:"Paid (AED)",pmode:"Payment mode",loc:"Warehouse location",desc:"Goods description",pk:"Packages",wt:"Weight kg",val:"Declared value",cond:"Condition",ref:"Invoice/Ref",staff:"Received by",rem:"Remarks",flags:"Flags",charge:"Storage charge excl VAT",balance:"Balance (AED)",status:"Status",invNo:"Tax invoice no",invDate:"Invoice date",invTotal:"Invoice total incl VAT",oAmt:"Other charges AED",oDesc:"Other charges description",disc:"Discount AED"};
+const COLS=[...F,"flags","charge","balance","status","invNo","invDate","invTotal","oAmt","oDesc","disc"],HDR=[...COLS.map(k=>FL[k]),"Goods photos","ID picture (Drive)","Goods pictures (Drive)","Monthly invoices (data)","Billed through","Partial releases (data)","Max item height (m)"];
+const FLAGS=[["fr","Fragile"],["pe","Perishable"],["hz","Hazardous"],["ins","Insured"]];
+let recs=[],ex={},id64="",gp=[],db=null,dl=null,last=null,S={co:"CityCube Warehousing",trn:"",addr:"",ph:"",em:"",vat:5,pre:"INV-",bank:"",foot:"Goods are stored subject to the terms and conditions mentioned overleaf.",hook:"",bays:7,bw:3,bh:3,bd:6.5,ma:85,mh:1,lic:"",court:"Dubai",cap:10000,late:1,grace:7,aband:30,depd:14,noticed:30,idret:50,pcbm:1.8};
+const today=()=>new Date().toISOString().slice(0,10),n2=x=>(+x||0).toFixed(2);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(m,ms){const t=$("toast");t.textContent=m;t.style.display="block";clearTimeout(t.h);t.h=setTimeout(()=>t.style.display="none",ms||3200)}
+function nextId(){const d=new Date(),p=x=>String(x).padStart(2,"0");return"CC-"+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase()}
+function nextInv(){let m=0;recs.forEach(r=>{const n=parseInt(String(r.invNo||"").replace(/\D/g,""))||0;if(n>m)m=n});return S.pre+String(m+1).padStart(5,"0")}
+function per(r){const a=r.billedTo?addDays(r.billedTo,1):r.din,b=r.dout||today(),days=a?Math.max(r.billedTo?0:1,Math.round((new Date(b)-new Date(a))/864e5)+1):0,c=r.cycle,u=c=="Daily"?days:c=="Monthly"?Math.ceil(days/30):Math.ceil(days/365);return{from:a,days,u,unit:c=="Daily"?"day":c=="Monthly"?"month":"year"}}
+function tot(r){const p=per(r).u*(+r.qty||0)*(+r.rate||0),o=+r.oAmt||0,d=+r.disc||0,tx=Math.max(0,p+o-d),v=tx*(+S.vat||0)/100;return{p,o,d,tx,v,t:tx+v}}
+const stOf=r=>r.outDone?"Closed":(r.dout&&r.dout<today()?"Overdue":"Active");
+function calc(){const r={...ex};F.forEach(k=>r[k]=$(k).value);const t=tot(r),p=per(r);
+ $("cp").textContent=r.din?`${p.days} day(s) = ${p.u} ${p.unit}(s)`:"–";$("ec").textContent="AED "+n2(t.p);$("ev").textContent="AED "+n2(t.t);$("bd").textContent="AED "+n2(t.t-(+r.paid||0));$("stt").textContent=stOf(r);return{charge:n2(t.p),balance:n2(t.t-(+r.paid||0)),status:stOf(r)}}
+function collect(){const r={...ex};F.forEach(k=>r[k]=$(k).value.trim());r.flags=FLAGS.filter(f=>$(f[0]).checked).map(f=>f[1]).join(", ");Object.assign(r,calc());r.idImg=id64;r.gImgs=gp;r.ht=$("ht").value.trim();r.saved=new Date().toISOString();return r}
+function thumbs(){$("idth").innerHTML=id64?`<div><img src="${id64}"><b data-k="i">×</b></div>`:"";$("gth").innerHTML=gp.map((s,i)=>`<div><img src="${s}"><b data-k="g" data-i="${i}">×</b></div>`).join("")}
+document.addEventListener("click",e=>{const b=e.target.closest("b[data-k]");if(!b)return;if(b.dataset.k=="i")id64="";else gp.splice(+b.dataset.i,1);thumbs()});
+function fill(r){F.forEach(k=>$(k).value=r[k]||"");$("ht").value=r.ht||"";FLAGS.forEach(f=>$(f[0]).checked=(r.flags||"").includes(f[1]));ex={};["outDone","oDesc","oAmt","disc","invNo","invDate","invTotal","bills","billedTo","moves","idTh","idLink","gTh","gLinks","cs"].forEach(k=>{if(r[k]!==undefined)ex[k]=r[k]});id64=r.idImg||"";gp=[...(r.gImgs||[])];thumbs();$("ql").textContent=$("basis").value;calc()}
+function blank(){fill({});$("edate").value=today();$("cid").value=nextId();$("idpic").value="";$("gpic").value="";$("cycle").value="Monthly"}
+function shrink(file,mx,cb){const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,mx/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.6))};im.src=rd.result};rd.readAsDataURL(file)}
+$("idpic").onchange=e=>e.target.files[0]&&shrink(e.target.files[0],700,d=>{id64=d;thumbs()});
+$("gpic").onchange=e=>{[...e.target.files].forEach(f=>{if(gp.length>=8)return toast("Max 8 pictures per record");shrink(f,560,d=>{gp.push(d);thumbs()})});e.target.value=""};
+["din","dout","qty","cycle","rate","paid"].forEach(k=>$(k).oninput=calc);$("basis").onchange=()=>$("ql").textContent=$("basis").value;
+$("idno").onchange=()=>{const v=$("idno").value.trim(),o=recs.find(x=>x.idno==v&&x.cid!=$("cid").value);if(v&&o){["name","ctype","idtype","idexp","trn","addr","mob","mob2","email","auth","authid"].forEach(k=>$(k).value=o[k]||"");id64=o.idImg||"";thumbs();toast("Returning customer – details filled from "+o.cid)}};
+function valid(){for(const[k,l]of[["name","Customer name"],["idno","ID number"],["mob","Mobile"],["din","Date of inbound"],["desc","Goods description"]])if(!$(k).value.trim()){toast(l+" is required");$(k).focus();return false}return true}
+const rowOf=r=>[...COLS.map(k=>r[k]??""),(r.gImgs||[]).length,"","",r.bills||"",r.billedTo||"",r.moves||"",r.ht||""];
+const pend=new Set();
+function sy(ok,m){const e=$("sy");e.textContent=(ok?"☁ ✔ Synced ":"☁ ⚠ NOT synced – ")+m;e.style.color=ok?"var(--ok)":"var(--wr)"}
+async function push(list,noImg,inv){if(!S.hook)list.forEach(r=>pend.add(r.cid));if(!S.hook)return toast("Add the Google Sheet URL in Settings to auto-sync");
+ const o={method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({key:S.key||"",inv:inv||[],headers:HDR,rows:list.map(rowOf),images:noImg?[]:list.map(r=>({cid:r.cid,name:r.name,id:r.idImg||"",goods:r.gImgs||[]}))})};let ok=false,msg="";
+ try{const r=await fetch(S.hook,o),t=(await r.text()).trim();ok=t=="ok";msg=ok?"":/ppConfig|accounts\.google|ServiceLogin/i.test(t)?"Google is asking for a sign-in, so the web app is not open to Anyone (Apps Script > Deploy > Manage deployments > Edit > Who has access: Anyone > New version). Your data is kept here and will sync once fixed":t=="denied"?"wrong access key – it must match the script exactly (a newly pasted script may have reset it to change-this-key)":"Google replied: "+t.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,160)}
+ catch(e){try{await fetch(S.hook,{...o,mode:"no-cors"});msg="request sent but Google did not confirm it"}catch(e2){msg="could not reach Google (offline or blocked)"}}
+ list.forEach(r=>ok?pend.delete(r.cid):pend.add(r.cid));if(ok&&!noImg){list.forEach(r=>{r.idImg="";r.gImgs=[]});try{localStorage.setItem("cc_recs",JSON.stringify(recs))}catch(e){}}sy(ok,ok?new Date().toLocaleTimeString():msg);
+ toast(ok?"Saved to Google Sheet ✔ (confirmed)":"Google Sheet NOT updated: "+msg+". Use 'Sync all' to retry.",ok?3200:15000)}
+async function persist(r){const i=recs.findIndex(x=>x.cid==r.cid);if(i>=0)recs[i]=r;else recs.unshift(r);
+ if(db){try{await db.collection("records").doc(r.cid).set(r)}catch(e){toast("Storage error: "+(e.message||e.code));return false}}else{try{localStorage.setItem("cc_recs",JSON.stringify(recs))}catch(e){toast("Browser storage full – export CSV");return false}}
+ render();return true}
+async function save(){if(!valid())return null;const r=collect();if(!recs.some(x=>x.cid==r.cid)&&recs.some(x=>x.cid==r.cid))r.cid=nextId();
+ if(await persist(r)){toast("Saved ✔");autoOnSave(r);push([r]);return r}return null}
+$("save").onclick=save;$("new").onclick=blank;
+function head(title,rt){return`<div class=hd><img src="${LOGO}"><div class=co><b>${esc(S.co)}</b><br>${esc(S.addr)}<br>${esc(S.ph)} ${esc(S.em)}${S.trn?"<br>TRN: "+esc(S.trn):""}</div><div class=rt>${rt}</div></div><h2>${title}</h2>`}
+const row=(a,b,c,d)=>`<tr><td class=k>${a}</td><td>${esc(b)}</td><td class=k>${c}</td><td>${esc(d)}</td></tr>`;
+function frontDoc(r){const t=tot(r);return head("STORAGE INTAKE FORM",`<b>${esc(r.cid)}</b><br>Date: ${esc(r.edate)}`)+`<table>${row("Customer",r.name,"Type",r.ctype)}${row("ID type",r.idtype,"ID no. / expiry",r.idno+(r.idexp?" / "+r.idexp:""))}${row("Mobile",r.mob,"Alt. mobile",r.mob2)}${row("Email",r.email,"Address",r.addr)}${row("Customer TRN",r.trn,"Authorised pick-up",(r.auth||"")+" "+(r.authid||""))}
+${row("Date inbound",r.din,"Expected outbound",r.dout)}${row("Storage",r.qty+" "+r.basis,"Billing",r.cycle+" @ AED "+r.rate)}${row("Warehouse location",r.loc,"Est. storage charge","AED "+n2(t.p)+" + VAT = "+n2(t.t))}${row("Deposit (AED)",r.dep,"Advance paid / mode",(r.paid||0)+" / "+r.pmode)}
+${row("Goods",r.desc,"Packages / Weight",(r.pk||"–")+" pkgs / "+(r.wt||"–")+" kg")}${row("Declared value",r.val,"Condition",r.cond)}${row("Invoice / Ref",r.ref,"Handling flags",r.flags)}${row("Received by",r.staff,"Remarks",r.rem)}${mv(r).length?row("Partial releases",mv(r).map(m=>m.date+": "+m.qty+" "+r.basis+(m.pk?" / "+m.pk+" pkgs":"")).join("; "),"In storage now",r.qty+" "+r.basis+(r.pk?" / "+r.pk+" pkgs":"")):""}</table>
+<div class=ph>${(r.idImg||r.idTh)?`<img src="${r.idImg||r.idTh}">`:""}${((r.gImgs||[]).length?r.gImgs:(r.gTh||[])).map(s=>`<img src="${s}">`).join("")}</div>
+<p style="margin-top:12px;font-size:12px"><b>☑ I fully read and agree the terms and conditions mentioned overleaf.</b></p><div class=sg><div>Customer signature &amp; date</div><div>${esc(S.co)} – signature &amp; stamp</div></div>`}
+function words(n){const a="Zero One Two Three Four Five Six Seven Eight Nine Ten Eleven Twelve Thirteen Fourteen Fifteen Sixteen Seventeen Eighteen Nineteen".split(" "),b="  Twenty Thirty Forty Fifty Sixty Seventy Eighty Ninety".split(" ");
+ const h=n=>n<20?a[n]:n<100?b[n/10|0]+(n%10?"-"+a[n%10]:""):a[n/100|0]+" Hundred"+(n%100?" "+h(n%100):""),g=n=>n<1e3?h(n):n<1e6?h(n/1e3|0)+" Thousand"+(n%1e3?" "+h(n%1e3):""):h(n/1e6|0)+" Million"+(n%1e6?" "+g(n%1e6):"");
+ const i=Math.floor(n),f=Math.round((n-i)*100);return"UAE Dirhams "+g(i)+(f?" and "+g(f)+" Fils":"")+" Only"}
+function invDoc(r){const t=tot(r),p=per(r),paid=+r.paid||0;let n=1;
+ const it=(d,q,u,a)=>`<tr><td>${n++}</td><td>${d}</td><td class=r>${q}</td><td class=r>${u}</td><td class=r>${a}</td></tr>`;
+ return head("TAX INVOICE",`<b>Invoice No: ${esc(r.invNo)}</b><br>Date: ${esc(r.invDate)}<br>Ref: ${esc(r.cid)}`)+`<table>${row("Bill to",r.name,"Customer TRN",r.trn)}${row("Address",r.addr,"Mobile / Email",(r.mob||"")+" "+(r.email||""))}</table>
+<table><tr><th>#</th><th>Description</th><th>Qty</th><th>Rate (AED)</th><th>Amount (AED)</th></tr>
+${it(`Storage of goods – ${esc(r.desc).slice(0,90)}<br>${r.qty} ${r.basis}, ${r.cycle} basis, location ${esc(r.loc)}<br>Period ${p.from} to ${r.dout} (${p.days} days = ${p.u} ${p.unit}(s))`,n2((+r.qty||0)*p.u),n2(r.rate),n2(t.p))}
+${t.o?it(esc(r.oDesc||"Other charges"),1,n2(t.o),n2(t.o)):""}${t.d?it("Discount",1,"-"+n2(t.d),"-"+n2(t.d)):""}
+<tr><td colspan=4 class=r>Taxable value</td><td class=r>${n2(t.tx)}</td></tr><tr><td colspan=4 class=r>VAT @ ${+S.vat}%</td><td class=r>${n2(t.v)}</td></tr><tr><td colspan=4 class=r><b>Total (AED)</b></td><td class=r><b>${n2(t.t)}</b></td></tr>
+<tr><td colspan=4 class=r>Less: payments received</td><td class=r>${n2(paid)}</td></tr><tr><td colspan=4 class=r><b>Balance due (AED)</b></td><td class=r><b>${n2(t.t-paid)}</b></td></tr></table>
+<p><b>Amount in words:</b> ${words(t.t)}</p>${+r.dep?`<p>Security deposit held (refundable, not part of this invoice): AED ${n2(r.dep)}</p>`:""}${S.bank?`<p><b>Bank details:</b><br>${esc(S.bank).replace(/\n/g,"<br>")}</p>`:""}<p style="font-size:10px">${esc(S.foot)}</p><div class=sg><div>Customer receipt &amp; signature</div><div>For ${esc(S.co)} – authorised signatory</div></div>`}
+function printDoc(html,name){$("sheet").innerHTML=html;last={html,name};if(dl)$("sv").hidden=false;try{window.print()}catch(e){}if(dl)toast("No print dialog? Tap “Save last print” (top) and open the file")}
+$("sv").onclick=async()=>{if(!last)return;const h=`<!DOCTYPE html><meta charset=utf-8><title>${esc(last.name)}</title><style>${$("shcss").textContent}body{margin:12mm}</style><body onload="print()"><div class=sh>${last.html}</div>`;try{await dl.save({filename:last.name.replace(/[^\w-]+/g,"_")+".html",data:h})}catch(e){toast("Not saved")}};
+$("pdf").onclick=()=>{if(valid()){const r=collect();printDoc(formDoc(r),r.cid+"_intake")}};
+function stats(){const a=recs.filter(r=>!r.outDone),sum=b=>a.filter(r=>r.basis==b).reduce((s,r)=>s+(+r.qty||0),0),due=recs.filter(r=>r.outDone).reduce((s,r)=>s+Math.max(0,+r.balance||0),0);
+ $("stats").innerHTML=`<div>Active customers<b>${new Set(a.map(r=>r.idno)).size}</b></div><div>Stored CBM<b>${sum("CBM").toFixed(1)}</b></div><div>Stored SQF<b>${sum("SQF").toFixed(0)}</b></div><div>Overdue outbound<b>${recs.filter(r=>stOf(r)=="Overdue").length}</b></div><div>Outstanding (AED)<b>${due.toFixed(0)}</b></div>`}
+function render(){$("cnt").textContent=recs.length;stats();$("rmc").textContent=remList().length;if(!$("v4").hidden)renderLay();const q=$("q").value.toLowerCase(),f=$("sf").value;
+ $("rows").innerHTML=recs.filter(r=>(!f||stOf(r)==f)&&(!q||[r.cid,r.name,r.idno,r.mob,r.loc,r.desc,r.invNo].join(" ").toLowerCase().includes(q))).map(r=>{const s=stOf(r),i=esc(r.cid);return`<tr><td>${i}</td><td>${esc(r.name)}</td><td>${esc(r.mob)}</td><td>${esc(r.loc)}</td><td>${esc(r.qty)} ${esc(r.basis)}</td><td>${esc(r.din)}</td><td>${esc(r.dout)}</td><td>${n2(r.charge)}</td><td><span class="tag ${s=="Active"?"ok":s=="Overdue"?"od":""}">${s}</span></td><td>${esc(r.invNo||"–")}</td>
+ <td style="white-space:nowrap"><button class="btn o" data-a=e data-i="${i}">Edit</button> <button class="btn o" data-a=p data-i="${i}">Form</button> <button class="btn o" data-a=l data-i="${i}">Label</button> <button class="btn o" data-a=o data-i="${i}">${r.outDone?"Invoice":"Outbound"}</button>${r.outDone?"":` <button class="btn o" data-a=x data-i="${i}">Partial</button>`}</td></tr>`}).join("")||`<tr><td colspan=11>No records.</td></tr>`}
+$("q").oninput=render;$("sf").onchange=render;
+$("rows").onclick=e=>{const b=e.target.closest("button");if(!b)return;const r=recs.find(x=>x.cid==b.dataset.i);if(b.dataset.a=="e"){fill(r);tab(1)}else if(b.dataset.a=="p")printDoc(formDoc(r),r.cid+"_intake");else if(b.dataset.a=="l")labels(r);else if(b.dataset.a=="x")partial(r);else outbound(r)};
+$("ob").onclick=async()=>{const r=await save();if(r)outbound(r)};
+function outbound(r){const d=r.outDone;$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">${d?"Tax invoice "+esc(r.invNo):"Outbound &amp; Tax Invoice"} – ${esc(r.name)}</h3>
+<div class=g><label>Actual outbound date<input type=date id="o1" value="${r.dout&&d?r.dout:today()}" ${d?"disabled":""}></label><label>Other charges (handling, forklift…) AED<input type=number id="o2" step=0.01 value="${r.oAmt||""}" ${d?"disabled":""}></label><label class=w2>Other charges description<input id="o3" value="${esc(r.oDesc||"")}" ${d?"disabled":""}></label><label>Discount AED<input type=number id="o4" step=0.01 value="${r.disc||""}" ${d?"disabled":""}></label><label>Payment received now AED<input type=number id="o5" step=0.01 ${d?"disabled":""}></label></div>
+<div class=bar style="position:static"><button class=btn id="o6">${d?"🖨 Reprint invoice":"✔ Confirm outbound &amp; print invoice"}</button><button class="btn o" id="o7">Cancel</button></div>`;$("md").style.display="flex";
+ $("o7").onclick=()=>$("md").style.display="none";
+ $("o6").onclick=async()=>{let x=r;if(!d){x={...r,dout:$("o1").value||today(),oAmt:$("o2").value,oDesc:$("o3").value,disc:$("o4").value,outDone:1,invDate:today(),invNo:await nextInvR()};x.paid=n2((+r.paid||0)+(+$("o5").value||0));const t=tot(x);x.charge=n2(t.p);x.invTotal=n2(t.t);x.balance=n2(t.t-x.paid);x.status="Closed";if(!await persist(x))return;{const tt=tot(x),pp=per(x);push([x],false,[invRow(x.invNo,x.invDate,x,pp.from||x.din,x.dout,"Outbound",tt.tx,tt.v,tt.t)])}if($("cid").value==x.cid)fill(x)}
+  $("md").style.display="none";printDoc(invDoc(x),x.invNo)}}
+const tsv=(sep,qt)=>[HDR,...recs.map(rowOf)].map(a=>a.map(v=>qt?'"'+String(v).replace(/"/g,'""')+'"':String(v).replace(/[\t\n]/g," ")).join(sep)).join("\n");
+$("csv").onclick=async()=>{if(!dl)return toast("Use Copy for Sheets");try{await dl.save({filename:"citycube_records_"+today()+".csv",data:"\ufeff"+tsv(",",true)})}catch(e){toast("Not saved")}};
+$("cpy").onclick=async()=>{try{await navigator.clipboard.writeText(tsv("\t"));toast("Copied – paste into Google Sheets")}catch(e){toast("Copy blocked – use CSV")}};
+$("sync").onclick=()=>push(recs);
+const SHK=["co","trn","addr","ph","em","vat","pre","bank","foot","bays","bw","bh","bd","ma","mh","lic","court","cap","late","grace","aband","depd","noticed","idret"],enc=()=>encodeURIComponent(S.key||"");
+async function nextInvR(){if(S.hook){try{const t=(await(await fetch(S.hook+"?action=inv&key="+enc())).text()).trim();if(/^\d+$/.test(t))return S.pre+t.padStart(5,"0")}catch(e){}toast("Could not reach Google Sheet for the invoice number – used a local number")}return nextInv()}
+async function loadSet(){if(!S.hook)return;try{const j=await(await fetch(S.hook+"?action=getset&key="+enc())).json();if(j.ok&&j.s){SHK.forEach(k=>{if(j.s[k]!==undefined)S[k]=j.s[k]});sfill()}}catch(e){}}
+function pushSet(){if(!S.hook)return;const s={};SHK.forEach(k=>s[k]=S[k]);fetch(S.hook,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({key:S.key||"",pin:sessionStorage.getItem("cc_pin")||"",action:"setset",s})}).catch(()=>{})}
+async function loadRemote(){if(!S.hook)return;try{const j=await(await fetch(S.hook+"?action=list&key="+enc())).json();if(!j.ok)throw 0;const n=HDR.length,old=Object.fromEntries(recs.map(r=>[r.cid,r])),rem=j.rows.map(a=>{const r={};COLS.forEach((k,i)=>r[k]=a[i]);const o=old[r.cid]||{};r.idImg=o.idImg||"";r.gImgs=o.gImgs||[];r.idLink=a[COLS.length+1];r.bills=a[COLS.length+3]||"";r.billedTo=a[COLS.length+4]||"";r.moves=a[COLS.length+5]||"";r.ht=a[COLS.length+6]||"";r.outDone=r.invNo?1:0;r.saved=o.saved||"";return r}).reverse(),ids=new Set(rem.map(r=>r.cid));recs=[...rem.filter(r=>!pend.has(r.cid)),...recs.filter(r=>pend.has(r.cid)||(!ids.has(r.cid)&&!r.outDone))];try{localStorage.setItem("cc_recs",JSON.stringify(recs))}catch(e){}render()}catch(e){}}
+const addDays=(d,n)=>{const x=new Date(d+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
+const bl=r=>{try{return JSON.parse(r.bills||"[]")}catch(e){return[]}};
+function billFor(r,ym){const[y,m]=ym.split("-").map(Number),ms=ym+"-01",me=ym+"-"+String(new Date(y,m,0).getDate()).padStart(2,"0"),bt=r.billedTo||"";
+ if(r.outDone||!r.din||r.din>me||r.cycle=="Annually"||bl(r).some(b=>b.ym==ym)||(r.cycle=="Monthly"&&bt.slice(0,7)>=ym))return null;
+ const f0=r.din>ms?r.din:ms,from=bt&&addDays(bt,1)>f0?addDays(bt,1):f0;if(from>me)return null;
+ const units=r.cycle=="Monthly"?1:Math.round((new Date(me)-new Date(from))/864e5)+1,amt=units*(+r.qty||0)*(+r.rate||0);
+ return amt>0?{ym,from,to:me,units,amt}:null}
+const invRow=(no,date,r,from,to,type,tx,v,t)=>[no,date,r.cid,r.name,r.trn||"",type,from,to,n2(tx),n2(v),n2(t)];
+function monthDoc(r,b){const tx=b.amt,v=tx*(+S.vat||0)/100,t=tx+v,adv=+b.adv||0;
+ return head("TAX INVOICE",`<b>Invoice No: ${esc(b.no)}</b><br>Date: ${esc(b.date)}<br>Ref: ${esc(r.cid)}`)+`<table>${row("Bill to",r.name,"Customer TRN",r.trn)}${row("Address",r.addr,"Mobile / Email",(r.mob||"")+" "+(r.email||""))}</table>
+<table><tr><th>#</th><th>Description</th><th>Qty</th><th>Rate (AED)</th><th>Amount (AED)</th></tr><tr><td>1</td><td>Storage of goods – ${esc(r.desc).slice(0,90)}<br>${r.qty} ${r.basis}, ${r.cycle} basis, location ${esc(r.loc)}<br>Period ${b.from} to ${b.to}</td><td class=r>${n2(b.units*(+r.qty||0))}</td><td class=r>${n2(r.rate)}</td><td class=r>${n2(tx)}</td></tr>
+<tr><td colspan=4 class=r>Taxable value</td><td class=r>${n2(tx)}</td></tr><tr><td colspan=4 class=r>VAT @ ${+S.vat}%</td><td class=r>${n2(v)}</td></tr><tr><td colspan=4 class=r><b>Total (AED)</b></td><td class=r><b>${n2(t)}</b></td></tr>
+${adv?`<tr><td colspan=4 class=r>Less: advance received</td><td class=r>${n2(adv)}</td></tr>`:""}<tr><td colspan=4 class=r><b>Balance due (AED)</b></td><td class=r><b>${n2(t-adv)}</b></td></tr></table>
+<p><b>Amount in words:</b> ${words(t)}</p>${S.bank?`<p><b>Bank details:</b><br>${esc(S.bank).replace(/\n/g,"<br>")}</p>`:""}<p style="font-size:10px">${esc(S.foot)}</p><div class=sg><div>Customer receipt &amp; signature</div><div>For ${esc(S.co)} – authorised signatory</div></div>`}
+function monthly(){$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">Monthly invoices</h3><label>Billing month<input type=month id="m1" value="${today().slice(0,7)}"></label><div id="m2" style="margin:10px 0;font-size:13px"></div><div class=bar style="position:static"><button class=btn id="m3">Generate &amp; print all</button><button class="btn o" id="m4">Close</button></div>`;$("md").style.display="flex";
+ const L=()=>{const ym=$("m1").value;return ym?recs.map(r=>({r,b:billFor(r,ym)})).filter(x=>x.b):[]};
+ const show=()=>{const l=L(),sum=l.reduce((s,x)=>s+x.b.amt,0),sk=recs.filter(r=>!r.outDone&&r.cycle=="Annually").length;
+  $("m2").innerHTML=(l.length?`<div class=tw><table><tr><th>Customer</th><th>Period</th><th>AED</th></tr>${l.map(x=>`<tr><td>${esc(x.r.name)}</td><td>${x.b.from} → ${x.b.to}</td><td>${n2(x.b.amt)}</td></tr>`).join("")}</table></div><p><b>${l.length} invoice(s): AED ${n2(sum)} + VAT ${n2(sum*(+S.vat||0)/100)}</b></p>`:"<p>Nothing to invoice for this month (already billed, or no active customers).</p>")+(sk?`<p style="color:var(--mut)">${sk} annual customer(s) not included – invoice them at outbound or renewal.</p>`:"")};
+ $("m1").oninput=show;show();$("m4").onclick=()=>$("md").style.display="none";
+ $("m3").onclick=async()=>{const l=L(),ym=$("m1").value;if(!l.length)return toast("Nothing to invoice");$("m3").disabled=true;const docs=[],inv=[],ups=[];
+  for(const{r,b}of l){const no=await nextInvR(),old=bl(r),adv=old.length?0:(+r.paid||0),e={no,date:today(),ym,from:b.from,to:b.to,units:b.units,amt:+n2(b.amt),adv};
+   const x={...r,bills:JSON.stringify([...old,e]),billedTo:b.to,paid:adv?"0":r.paid},t=tot(x);x.charge=n2(t.p);x.balance=n2(t.t-(+x.paid||0));x.status=stOf(x);
+   if(!await persist(x))continue;ups.push(x);docs.push(monthDoc(x,e));inv.push(invRow(no,e.date,x,b.from,b.to,"Monthly",b.amt,b.amt*(+S.vat||0)/100,b.amt*(1+(+S.vat||0)/100)))}
+  $("md").style.display="none";if(!ups.length)return;push(ups,true,inv);printDoc(docs.join('<div style="page-break-after:always"></div>'),"Monthly_invoices_"+ym)}}
+function remList(){const t=today(),d7=addDays(t,7),d30=addDays(t,30),L=[],C=S.co;
+ recs.forEach(r=>{const nm="Dear "+r.name+", ";
+  if(!r.outDone){if(r.dout&&r.dout<t)L.push({r,k:"Outbound overdue",d:r.dout,m:nm+"your goods stored with "+C+" (ref "+r.cid+") were due for collection on "+r.dout+". Please contact us to arrange outbound."});else if(r.dout&&r.dout<=d7)L.push({r,k:"Outbound due soon",d:r.dout,m:nm+"this is a reminder that your goods stored with "+C+" (ref "+r.cid+") are scheduled for collection on "+r.dout+"."});
+   if(r.idexp&&r.idexp<=d30)L.push({r,k:r.idexp<t?"ID expired":"ID expiring",d:r.idexp,m:nm+"the "+r.idtype+" we hold on file for "+C+" (ref "+r.cid+") expires/expired on "+r.idexp+". Please send us an updated copy."})}
+  else if((+r.balance||0)>0.5)L.push({r,k:"Invoice unpaid",d:"AED "+n2(r.balance),m:nm+"our records show an outstanding balance of AED "+n2(r.balance)+" for invoice "+(r.invNo||"")+" ("+C+"). Kindly arrange payment."})});return L}
+const wa=(m,t)=>{let d=String(m||"").replace(/\D/g,"");d=d.startsWith("00")?d.slice(2):d.startsWith("0")?"971"+d.slice(1):d;return d?"https://wa.me/"+d+"?text="+encodeURIComponent(t):""};
+function reminders(){const L=remList();$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">Reminders</h3>`+(L.length?`<div class=tw><table><tr><th>Customer</th><th>Reminder</th><th>Date / amount</th><th></th></tr>${L.map(x=>{const u=wa(x.r.mob,x.m);return`<tr><td>${esc(x.r.name)}<br><small>${esc(x.r.cid)}</small></td><td>${x.k}</td><td>${esc(x.d)}</td><td style="white-space:nowrap">${x.k=="Invoice unpaid"?`<button class="btn o" data-mp="${esc(x.r.cid)}">Mark paid</button> `:""}${u?`<a class="btn o" style="text-decoration:none" href="${u}" target="_blank" rel="noopener">WhatsApp</a>`:""}</td></tr>`}).join("")}</table></div><p style="font-size:12px;color:var(--mut)">Active customers: outbound within 7 days or overdue, IDs expiring within 30 days. Closed customers appear only while an invoice is unpaid – click Mark paid once payment is received.</p>`:"<p>No reminders right now.</p>")+`<div class=bar style="position:static"><button class="btn o" id="r1">Close</button></div>`;$("md").style.display="flex";$("r1").onclick=()=>$("md").style.display="none";$("mdc").onclick=async e=>{const b=e.target.closest("[data-mp]");if(!b)return;const r=recs.find(x=>x.cid==b.dataset.mp);if(!r)return;const x={...r,paid:n2(tot(r).t),balance:"0.00"};if(await persist(x)){push([x],true);reminders();toast("Marked as paid")}}}
+const QRLIB=(()=>{const defs={},cache={},req=n=>{n=n.replace('./','');if(cache[n])return cache[n].exports;const m={exports:{}};cache[n]=m;defs[n](m,req);return m.exports};
+defs['QRMode']=function(module,require){
+module.exports = {
+MODE_NUMBER :       1 << 0,
+MODE_ALPHA_NUM :    1 << 1,
+MODE_8BIT_BYTE :    1 << 2,
+MODE_KANJI :        1 << 3
+};
+};
+defs['QRErrorCorrectLevel']=function(module,require){
+module.exports = {
+L : 1,
+M : 0,
+Q : 3,
+H : 2
+};
+};
+defs['QRMaskPattern']=function(module,require){
+module.exports = {
+PATTERN000 : 0,
+PATTERN001 : 1,
+PATTERN010 : 2,
+PATTERN011 : 3,
+PATTERN100 : 4,
+PATTERN101 : 5,
+PATTERN110 : 6,
+PATTERN111 : 7
+};
+};
+defs['QRMath']=function(module,require){
+var QRMath = {
+glog : function(n) {
+if (n < 1) {
+throw new Error("glog(" + n + ")");
+}
+return QRMath.LOG_TABLE[n];
+},
+gexp : function(n) {
+while (n < 0) {
+n += 255;
+}
+while (n >= 256) {
+n -= 255;
+}
+return QRMath.EXP_TABLE[n];
+},
+EXP_TABLE : new Array(256),
+LOG_TABLE : new Array(256)
+};
+for (var i = 0; i < 8; i++) {
+QRMath.EXP_TABLE[i] = 1 << i;
+}
+for (var i = 8; i < 256; i++) {
+QRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4]
+^ QRMath.EXP_TABLE[i - 5]
+^ QRMath.EXP_TABLE[i - 6]
+^ QRMath.EXP_TABLE[i - 8];
+}
+for (var i = 0; i < 255; i++) {
+QRMath.LOG_TABLE[QRMath.EXP_TABLE[i] ] = i;
+}
+module.exports = QRMath;
+};
+defs['QRPolynomial']=function(module,require){
+var QRMath = require('./QRMath');
+function QRPolynomial(num, shift) {
+if (num.length === undefined) {
+throw new Error(num.length + "/" + shift);
+}
+var offset = 0;
+while (offset < num.length && num[offset] === 0) {
+offset++;
+}
+this.num = new Array(num.length - offset + shift);
+for (var i = 0; i < num.length - offset; i++) {
+this.num[i] = num[i + offset];
+}
+}
+QRPolynomial.prototype = {
+get : function(index) {
+return this.num[index];
+},
+getLength : function() {
+return this.num.length;
+},
+multiply : function(e) {
+var num = new Array(this.getLength() + e.getLength() - 1);
+for (var i = 0; i < this.getLength(); i++) {
+for (var j = 0; j < e.getLength(); j++) {
+num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i) ) + QRMath.glog(e.get(j) ) );
+}
+}
+return new QRPolynomial(num, 0);
+},
+mod : function(e) {
+if (this.getLength() - e.getLength() < 0) {
+return this;
+}
+var ratio = QRMath.glog(this.get(0) ) - QRMath.glog(e.get(0) );
+var num = new Array(this.getLength() );
+for (var i = 0; i < this.getLength(); i++) {
+num[i] = this.get(i);
+}
+for (var x = 0; x < e.getLength(); x++) {
+num[x] ^= QRMath.gexp(QRMath.glog(e.get(x) ) + ratio);
+}
+return new QRPolynomial(num, 0).mod(e);
+}
+};
+module.exports = QRPolynomial;
+};
+defs['QRBitBuffer']=function(module,require){
+function QRBitBuffer() {
+this.buffer = [];
+this.length = 0;
+}
+QRBitBuffer.prototype = {
+get : function(index) {
+var bufIndex = Math.floor(index / 8);
+return ( (this.buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+},
+put : function(num, length) {
+for (var i = 0; i < length; i++) {
+this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+}
+},
+getLengthInBits : function() {
+return this.length;
+},
+putBit : function(bit) {
+var bufIndex = Math.floor(this.length / 8);
+if (this.buffer.length <= bufIndex) {
+this.buffer.push(0);
+}
+if (bit) {
+this.buffer[bufIndex] |= (0x80 >>> (this.length % 8) );
+}
+this.length++;
+}
+};
+module.exports = QRBitBuffer;
+};
+defs['QR8bitByte']=function(module,require){
+var QRMode = require('./QRMode');
+function QR8bitByte(data) {
+this.mode = QRMode.MODE_8BIT_BYTE;
+this.data = data;
+}
+QR8bitByte.prototype = {
+getLength : function() {
+return this.data.length;
+},
+write : function(buffer) {
+for (var i = 0; i < this.data.length; i++) {
+buffer.put(this.data.charCodeAt(i), 8);
+}
+}
+};
+module.exports = QR8bitByte;
+};
+defs['QRRSBlock']=function(module,require){
+var QRErrorCorrectLevel = require('./QRErrorCorrectLevel');
+function QRRSBlock(totalCount, dataCount) {
+this.totalCount = totalCount;
+this.dataCount  = dataCount;
+}
+QRRSBlock.RS_BLOCK_TABLE = [
+[1, 26, 19],
+[1, 26, 16],
+[1, 26, 13],
+[1, 26, 9],
+[1, 44, 34],
+[1, 44, 28],
+[1, 44, 22],
+[1, 44, 16],
+[1, 70, 55],
+[1, 70, 44],
+[2, 35, 17],
+[2, 35, 13],
+[1, 100, 80],
+[2, 50, 32],
+[2, 50, 24],
+[4, 25, 9],
+[1, 134, 108],
+[2, 67, 43],
+[2, 33, 15, 2, 34, 16],
+[2, 33, 11, 2, 34, 12],
+[2, 86, 68],
+[4, 43, 27],
+[4, 43, 19],
+[4, 43, 15],
+[2, 98, 78],
+[4, 49, 31],
+[2, 32, 14, 4, 33, 15],
+[4, 39, 13, 1, 40, 14],
+[2, 121, 97],
+[2, 60, 38, 2, 61, 39],
+[4, 40, 18, 2, 41, 19],
+[4, 40, 14, 2, 41, 15],
+[2, 146, 116],
+[3, 58, 36, 2, 59, 37],
+[4, 36, 16, 4, 37, 17],
+[4, 36, 12, 4, 37, 13],
+[2, 86, 68, 2, 87, 69],
+[4, 69, 43, 1, 70, 44],
+[6, 43, 19, 2, 44, 20],
+[6, 43, 15, 2, 44, 16],
+[4, 101, 81],
+[1, 80, 50, 4, 81, 51],
+[4, 50, 22, 4, 51, 23],
+[3, 36, 12, 8, 37, 13],
+[2, 116, 92, 2, 117, 93],
+[6, 58, 36, 2, 59, 37],
+[4, 46, 20, 6, 47, 21],
+[7, 42, 14, 4, 43, 15],
+[4, 133, 107],
+[8, 59, 37, 1, 60, 38],
+[8, 44, 20, 4, 45, 21],
+[12, 33, 11, 4, 34, 12],
+[3, 145, 115, 1, 146, 116],
+[4, 64, 40, 5, 65, 41],
+[11, 36, 16, 5, 37, 17],
+[11, 36, 12, 5, 37, 13],
+[5, 109, 87, 1, 110, 88],
+[5, 65, 41, 5, 66, 42],
+[5, 54, 24, 7, 55, 25],
+[11, 36, 12],
+[5, 122, 98, 1, 123, 99],
+[7, 73, 45, 3, 74, 46],
+[15, 43, 19, 2, 44, 20],
+[3, 45, 15, 13, 46, 16],
+[1, 135, 107, 5, 136, 108],
+[10, 74, 46, 1, 75, 47],
+[1, 50, 22, 15, 51, 23],
+[2, 42, 14, 17, 43, 15],
+[5, 150, 120, 1, 151, 121],
+[9, 69, 43, 4, 70, 44],
+[17, 50, 22, 1, 51, 23],
+[2, 42, 14, 19, 43, 15],
+[3, 141, 113, 4, 142, 114],
+[3, 70, 44, 11, 71, 45],
+[17, 47, 21, 4, 48, 22],
+[9, 39, 13, 16, 40, 14],
+[3, 135, 107, 5, 136, 108],
+[3, 67, 41, 13, 68, 42],
+[15, 54, 24, 5, 55, 25],
+[15, 43, 15, 10, 44, 16],
+[4, 144, 116, 4, 145, 117],
+[17, 68, 42],
+[17, 50, 22, 6, 51, 23],
+[19, 46, 16, 6, 47, 17],
+[2, 139, 111, 7, 140, 112],
+[17, 74, 46],
+[7, 54, 24, 16, 55, 25],
+[34, 37, 13],
+[4, 151, 121, 5, 152, 122],
+[4, 75, 47, 14, 76, 48],
+[11, 54, 24, 14, 55, 25],
+[16, 45, 15, 14, 46, 16],
+[6, 147, 117, 4, 148, 118],
+[6, 73, 45, 14, 74, 46],
+[11, 54, 24, 16, 55, 25],
+[30, 46, 16, 2, 47, 17],
+[8, 132, 106, 4, 133, 107],
+[8, 75, 47, 13, 76, 48],
+[7, 54, 24, 22, 55, 25],
+[22, 45, 15, 13, 46, 16],
+[10, 142, 114, 2, 143, 115],
+[19, 74, 46, 4, 75, 47],
+[28, 50, 22, 6, 51, 23],
+[33, 46, 16, 4, 47, 17],
+[8, 152, 122, 4, 153, 123],
+[22, 73, 45, 3, 74, 46],
+[8, 53, 23, 26, 54, 24],
+[12, 45, 15, 28, 46, 16],
+[3, 147, 117, 10, 148, 118],
+[3, 73, 45, 23, 74, 46],
+[4, 54, 24, 31, 55, 25],
+[11, 45, 15, 31, 46, 16],
+[7, 146, 116, 7, 147, 117],
+[21, 73, 45, 7, 74, 46],
+[1, 53, 23, 37, 54, 24],
+[19, 45, 15, 26, 46, 16],
+[5, 145, 115, 10, 146, 116],
+[19, 75, 47, 10, 76, 48],
+[15, 54, 24, 25, 55, 25],
+[23, 45, 15, 25, 46, 16],
+[13, 145, 115, 3, 146, 116],
+[2, 74, 46, 29, 75, 47],
+[42, 54, 24, 1, 55, 25],
+[23, 45, 15, 28, 46, 16],
+[17, 145, 115],
+[10, 74, 46, 23, 75, 47],
+[10, 54, 24, 35, 55, 25],
+[19, 45, 15, 35, 46, 16],
+[17, 145, 115, 1, 146, 116],
+[14, 74, 46, 21, 75, 47],
+[29, 54, 24, 19, 55, 25],
+[11, 45, 15, 46, 46, 16],
+[13, 145, 115, 6, 146, 116],
+[14, 74, 46, 23, 75, 47],
+[44, 54, 24, 7, 55, 25],
+[59, 46, 16, 1, 47, 17],
+[12, 151, 121, 7, 152, 122],
+[12, 75, 47, 26, 76, 48],
+[39, 54, 24, 14, 55, 25],
+[22, 45, 15, 41, 46, 16],
+[6, 151, 121, 14, 152, 122],
+[6, 75, 47, 34, 76, 48],
+[46, 54, 24, 10, 55, 25],
+[2, 45, 15, 64, 46, 16],
+[17, 152, 122, 4, 153, 123],
+[29, 74, 46, 14, 75, 47],
+[49, 54, 24, 10, 55, 25],
+[24, 45, 15, 46, 46, 16],
+[4, 152, 122, 18, 153, 123],
+[13, 74, 46, 32, 75, 47],
+[48, 54, 24, 14, 55, 25],
+[42, 45, 15, 32, 46, 16],
+[20, 147, 117, 4, 148, 118],
+[40, 75, 47, 7, 76, 48],
+[43, 54, 24, 22, 55, 25],
+[10, 45, 15, 67, 46, 16],
+[19, 148, 118, 6, 149, 119],
+[18, 75, 47, 31, 76, 48],
+[34, 54, 24, 34, 55, 25],
+[20, 45, 15, 61, 46, 16]
+];
+QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
+var rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
+if (rsBlock === undefined) {
+throw new Error("bad rs block @ typeNumber:" + typeNumber + "/errorCorrectLevel:" + errorCorrectLevel);
+}
+var length = rsBlock.length / 3;
+var list = [];
+for (var i = 0; i < length; i++) {
+var count = rsBlock[i * 3 + 0];
+var totalCount = rsBlock[i * 3 + 1];
+var dataCount  = rsBlock[i * 3 + 2];
+for (var j = 0; j < count; j++) {
+list.push(new QRRSBlock(totalCount, dataCount) );
+}
+}
+return list;
+};
+QRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {
+switch(errorCorrectLevel) {
+case QRErrorCorrectLevel.L :
+return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+case QRErrorCorrectLevel.M :
+return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+case QRErrorCorrectLevel.Q :
+return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+case QRErrorCorrectLevel.H :
+return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+default :
+return undefined;
+}
+};
+module.exports = QRRSBlock;
+};
+defs['QRUtil']=function(module,require){
+var QRMode = require('./QRMode');
+var QRPolynomial = require('./QRPolynomial');
+var QRMath = require('./QRMath');
+var QRMaskPattern = require('./QRMaskPattern');
+var QRUtil = {
+PATTERN_POSITION_TABLE : [
+[],
+[6, 18],
+[6, 22],
+[6, 26],
+[6, 30],
+[6, 34],
+[6, 22, 38],
+[6, 24, 42],
+[6, 26, 46],
+[6, 28, 50],
+[6, 30, 54],
+[6, 32, 58],
+[6, 34, 62],
+[6, 26, 46, 66],
+[6, 26, 48, 70],
+[6, 26, 50, 74],
+[6, 30, 54, 78],
+[6, 30, 56, 82],
+[6, 30, 58, 86],
+[6, 34, 62, 90],
+[6, 28, 50, 72, 94],
+[6, 26, 50, 74, 98],
+[6, 30, 54, 78, 102],
+[6, 28, 54, 80, 106],
+[6, 32, 58, 84, 110],
+[6, 30, 58, 86, 114],
+[6, 34, 62, 90, 118],
+[6, 26, 50, 74, 98, 122],
+[6, 30, 54, 78, 102, 126],
+[6, 26, 52, 78, 104, 130],
+[6, 30, 56, 82, 108, 134],
+[6, 34, 60, 86, 112, 138],
+[6, 30, 58, 86, 114, 142],
+[6, 34, 62, 90, 118, 146],
+[6, 30, 54, 78, 102, 126, 150],
+[6, 24, 50, 76, 102, 128, 154],
+[6, 28, 54, 80, 106, 132, 158],
+[6, 32, 58, 84, 110, 136, 162],
+[6, 26, 54, 82, 110, 138, 166],
+[6, 30, 58, 86, 114, 142, 170]
+],
+G15 : (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),
+G18 : (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),
+G15_MASK : (1 << 14) | (1 << 12) | (1 << 10)    | (1 << 4) | (1 << 1),
+getBCHTypeInfo : function(data) {
+var d = data << 10;
+while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) {
+d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) ) );
+}
+return ( (data << 10) | d) ^ QRUtil.G15_MASK;
+},
+getBCHTypeNumber : function(data) {
+var d = data << 12;
+while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) {
+d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) ) );
+}
+return (data << 12) | d;
+},
+getBCHDigit : function(data) {
+var digit = 0;
+while (data !== 0) {
+digit++;
+data >>>= 1;
+}
+return digit;
+},
+getPatternPosition : function(typeNumber) {
+return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1];
+},
+getMask : function(maskPattern, i, j) {
+switch (maskPattern) {
+case QRMaskPattern.PATTERN000 : return (i + j) % 2 === 0;
+case QRMaskPattern.PATTERN001 : return i % 2 === 0;
+case QRMaskPattern.PATTERN010 : return j % 3 === 0;
+case QRMaskPattern.PATTERN011 : return (i + j) % 3 === 0;
+case QRMaskPattern.PATTERN100 : return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 === 0;
+case QRMaskPattern.PATTERN101 : return (i * j) % 2 + (i * j) % 3 === 0;
+case QRMaskPattern.PATTERN110 : return ( (i * j) % 2 + (i * j) % 3) % 2 === 0;
+case QRMaskPattern.PATTERN111 : return ( (i * j) % 3 + (i + j) % 2) % 2 === 0;
+default :
+throw new Error("bad maskPattern:" + maskPattern);
+}
+},
+getErrorCorrectPolynomial : function(errorCorrectLength) {
+var a = new QRPolynomial([1], 0);
+for (var i = 0; i < errorCorrectLength; i++) {
+a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0) );
+}
+return a;
+},
+getLengthInBits : function(mode, type) {
+if (1 <= type && type < 10) {
+switch(mode) {
+case QRMode.MODE_NUMBER     : return 10;
+case QRMode.MODE_ALPHA_NUM  : return 9;
+case QRMode.MODE_8BIT_BYTE  : return 8;
+case QRMode.MODE_KANJI      : return 8;
+default :
+throw new Error("mode:" + mode);
+}
+} else if (type < 27) {
+switch(mode) {
+case QRMode.MODE_NUMBER     : return 12;
+case QRMode.MODE_ALPHA_NUM  : return 11;
+case QRMode.MODE_8BIT_BYTE  : return 16;
+case QRMode.MODE_KANJI      : return 10;
+default :
+throw new Error("mode:" + mode);
+}
+} else if (type < 41) {
+switch(mode) {
+case QRMode.MODE_NUMBER     : return 14;
+case QRMode.MODE_ALPHA_NUM  : return 13;
+case QRMode.MODE_8BIT_BYTE  : return 16;
+case QRMode.MODE_KANJI      : return 12;
+default :
+throw new Error("mode:" + mode);
+}
+} else {
+throw new Error("type:" + type);
+}
+},
+getLostPoint : function(qrCode) {
+var moduleCount = qrCode.getModuleCount();
+var lostPoint = 0;
+var row = 0;
+var col = 0;
+for (row = 0; row < moduleCount; row++) {
+for (col = 0; col < moduleCount; col++) {
+var sameCount = 0;
+var dark = qrCode.isDark(row, col);
+for (var r = -1; r <= 1; r++) {
+if (row + r < 0 || moduleCount <= row + r) {
+continue;
+}
+for (var c = -1; c <= 1; c++) {
+if (col + c < 0 || moduleCount <= col + c) {
+continue;
+}
+if (r === 0 && c === 0) {
+continue;
+}
+if (dark === qrCode.isDark(row + r, col + c) ) {
+sameCount++;
+}
+}
+}
+if (sameCount > 5) {
+lostPoint += (3 + sameCount - 5);
+}
+}
+}
+for (row = 0; row < moduleCount - 1; row++) {
+for (col = 0; col < moduleCount - 1; col++) {
+var count = 0;
+if (qrCode.isDark(row,     col    ) ) count++;
+if (qrCode.isDark(row + 1, col    ) ) count++;
+if (qrCode.isDark(row,     col + 1) ) count++;
+if (qrCode.isDark(row + 1, col + 1) ) count++;
+if (count === 0 || count === 4) {
+lostPoint += 3;
+}
+}
+}
+for (row = 0; row < moduleCount; row++) {
+for (col = 0; col < moduleCount - 6; col++) {
+if (qrCode.isDark(row, col) &&
+!qrCode.isDark(row, col + 1) &&
+qrCode.isDark(row, col + 2) &&
+qrCode.isDark(row, col + 3) &&
+qrCode.isDark(row, col + 4) &&
+!qrCode.isDark(row, col + 5) &&
+qrCode.isDark(row, col + 6) ) {
+lostPoint += 40;
+}
+}
+}
+for (col = 0; col < moduleCount; col++) {
+for (row = 0; row < moduleCount - 6; row++) {
+if (qrCode.isDark(row, col) &&
+!qrCode.isDark(row + 1, col) &&
+qrCode.isDark(row + 2, col) &&
+qrCode.isDark(row + 3, col) &&
+qrCode.isDark(row + 4, col) &&
+!qrCode.isDark(row + 5, col) &&
+qrCode.isDark(row + 6, col) ) {
+lostPoint += 40;
+}
+}
+}
+var darkCount = 0;
+for (col = 0; col < moduleCount; col++) {
+for (row = 0; row < moduleCount; row++) {
+if (qrCode.isDark(row, col) ) {
+darkCount++;
+}
+}
+}
+var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+lostPoint += ratio * 10;
+return lostPoint;
+}
+};
+module.exports = QRUtil;
+};
+defs['index']=function(module,require){
+var QR8bitByte = require('./QR8bitByte');
+var QRUtil = require('./QRUtil');
+var QRPolynomial = require('./QRPolynomial');
+var QRRSBlock = require('./QRRSBlock');
+var QRBitBuffer = require('./QRBitBuffer');
+function QRCode(typeNumber, errorCorrectLevel) {
+this.typeNumber = typeNumber;
+this.errorCorrectLevel = errorCorrectLevel;
+this.modules = null;
+this.moduleCount = 0;
+this.dataCache = null;
+this.dataList = [];
+}
+QRCode.prototype = {
+addData : function(data) {
+var newData = new QR8bitByte(data);
+this.dataList.push(newData);
+this.dataCache = null;
+},
+isDark : function(row, col) {
+if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {
+throw new Error(row + "," + col);
+}
+return this.modules[row][col];
+},
+getModuleCount : function() {
+return this.moduleCount;
+},
+make : function() {
+if (this.typeNumber < 1 ){
+var typeNumber = 1;
+for (typeNumber = 1; typeNumber < 40; typeNumber++) {
+var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);
+var buffer = new QRBitBuffer();
+var totalDataCount = 0;
+for (var i = 0; i < rsBlocks.length; i++) {
+totalDataCount += rsBlocks[i].dataCount;
+}
+for (var x = 0; x < this.dataList.length; x++) {
+var data = this.dataList[x];
+buffer.put(data.mode, 4);
+buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
+data.write(buffer);
+}
+if (buffer.getLengthInBits() <= totalDataCount * 8)
+break;
+}
+this.typeNumber = typeNumber;
+}
+this.makeImpl(false, this.getBestMaskPattern() );
+},
+makeImpl : function(test, maskPattern) {
+this.moduleCount = this.typeNumber * 4 + 17;
+this.modules = new Array(this.moduleCount);
+for (var row = 0; row < this.moduleCount; row++) {
+this.modules[row] = new Array(this.moduleCount);
+for (var col = 0; col < this.moduleCount; col++) {
+this.modules[row][col] = null;//(col + row) % 3;
+}
+}
+this.setupPositionProbePattern(0, 0);
+this.setupPositionProbePattern(this.moduleCount - 7, 0);
+this.setupPositionProbePattern(0, this.moduleCount - 7);
+this.setupPositionAdjustPattern();
+this.setupTimingPattern();
+this.setupTypeInfo(test, maskPattern);
+if (this.typeNumber >= 7) {
+this.setupTypeNumber(test);
+}
+if (this.dataCache === null) {
+this.dataCache = QRCode.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
+}
+this.mapData(this.dataCache, maskPattern);
+},
+setupPositionProbePattern : function(row, col)  {
+for (var r = -1; r <= 7; r++) {
+if (row + r <= -1 || this.moduleCount <= row + r) continue;
+for (var c = -1; c <= 7; c++) {
+if (col + c <= -1 || this.moduleCount <= col + c) continue;
+if ( (0 <= r && r <= 6 && (c === 0 || c === 6) ) ||
+(0 <= c && c <= 6 && (r === 0 || r === 6) ) ||
+(2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+this.modules[row + r][col + c] = true;
+} else {
+this.modules[row + r][col + c] = false;
+}
+}
+}
+},
+getBestMaskPattern : function() {
+var minLostPoint = 0;
+var pattern = 0;
+for (var i = 0; i < 8; i++) {
+this.makeImpl(true, i);
+var lostPoint = QRUtil.getLostPoint(this);
+if (i === 0 || minLostPoint >  lostPoint) {
+minLostPoint = lostPoint;
+pattern = i;
+}
+}
+return pattern;
+},
+createMovieClip : function(target_mc, instance_name, depth) {
+var qr_mc = target_mc.createEmptyMovieClip(instance_name, depth);
+var cs = 1;
+this.make();
+for (var row = 0; row < this.modules.length; row++) {
+var y = row * cs;
+for (var col = 0; col < this.modules[row].length; col++) {
+var x = col * cs;
+var dark = this.modules[row][col];
+if (dark) {
+qr_mc.beginFill(0, 100);
+qr_mc.moveTo(x, y);
+qr_mc.lineTo(x + cs, y);
+qr_mc.lineTo(x + cs, y + cs);
+qr_mc.lineTo(x, y + cs);
+qr_mc.endFill();
+}
+}
+}
+return qr_mc;
+},
+setupTimingPattern : function() {
+for (var r = 8; r < this.moduleCount - 8; r++) {
+if (this.modules[r][6] !== null) {
+continue;
+}
+this.modules[r][6] = (r % 2 === 0);
+}
+for (var c = 8; c < this.moduleCount - 8; c++) {
+if (this.modules[6][c] !== null) {
+continue;
+}
+this.modules[6][c] = (c % 2 === 0);
+}
+},
+setupPositionAdjustPattern : function() {
+var pos = QRUtil.getPatternPosition(this.typeNumber);
+for (var i = 0; i < pos.length; i++) {
+for (var j = 0; j < pos.length; j++) {
+var row = pos[i];
+var col = pos[j];
+if (this.modules[row][col] !== null) {
+continue;
+}
+for (var r = -2; r <= 2; r++) {
+for (var c = -2; c <= 2; c++) {
+if (Math.abs(r) === 2 ||
+Math.abs(c) === 2 ||
+(r === 0 && c === 0) ) {
+this.modules[row + r][col + c] = true;
+} else {
+this.modules[row + r][col + c] = false;
+}
+}
+}
+}
+}
+},
+setupTypeNumber : function(test) {
+var bits = QRUtil.getBCHTypeNumber(this.typeNumber);
+var mod;
+for (var i = 0; i < 18; i++) {
+mod = (!test && ( (bits >> i) & 1) === 1);
+this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
+}
+for (var x = 0; x < 18; x++) {
+mod = (!test && ( (bits >> x) & 1) === 1);
+this.modules[x % 3 + this.moduleCount - 8 - 3][Math.floor(x / 3)] = mod;
+}
+},
+setupTypeInfo : function(test, maskPattern) {
+var data = (this.errorCorrectLevel << 3) | maskPattern;
+var bits = QRUtil.getBCHTypeInfo(data);
+var mod;
+for (var v = 0; v < 15; v++) {
+mod = (!test && ( (bits >> v) & 1) === 1);
+if (v < 6) {
+this.modules[v][8] = mod;
+} else if (v < 8) {
+this.modules[v + 1][8] = mod;
+} else {
+this.modules[this.moduleCount - 15 + v][8] = mod;
+}
+}
+for (var h = 0; h < 15; h++) {
+mod = (!test && ( (bits >> h) & 1) === 1);
+if (h < 8) {
+this.modules[8][this.moduleCount - h - 1] = mod;
+} else if (h < 9) {
+this.modules[8][15 - h - 1 + 1] = mod;
+} else {
+this.modules[8][15 - h - 1] = mod;
+}
+}
+this.modules[this.moduleCount - 8][8] = (!test);
+},
+mapData : function(data, maskPattern) {
+var inc = -1;
+var row = this.moduleCount - 1;
+var bitIndex = 7;
+var byteIndex = 0;
+for (var col = this.moduleCount - 1; col > 0; col -= 2) {
+if (col === 6) col--;
+while (true) {
+for (var c = 0; c < 2; c++) {
+if (this.modules[row][col - c] === null) {
+var dark = false;
+if (byteIndex < data.length) {
+dark = ( ( (data[byteIndex] >>> bitIndex) & 1) === 1);
+}
+var mask = QRUtil.getMask(maskPattern, row, col - c);
+if (mask) {
+dark = !dark;
+}
+this.modules[row][col - c] = dark;
+bitIndex--;
+if (bitIndex === -1) {
+byteIndex++;
+bitIndex = 7;
+}
+}
+}
+row += inc;
+if (row < 0 || this.moduleCount <= row) {
+row -= inc;
+inc = -inc;
+break;
+}
+}
+}
+}
+};
+QRCode.PAD0 = 0xEC;
+QRCode.PAD1 = 0x11;
+QRCode.createData = function(typeNumber, errorCorrectLevel, dataList) {
+var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
+var buffer = new QRBitBuffer();
+for (var i = 0; i < dataList.length; i++) {
+var data = dataList[i];
+buffer.put(data.mode, 4);
+buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
+data.write(buffer);
+}
+var totalDataCount = 0;
+for (var x = 0; x < rsBlocks.length; x++) {
+totalDataCount += rsBlocks[x].dataCount;
+}
+if (buffer.getLengthInBits() > totalDataCount * 8) {
+throw new Error("code length overflow. (" +
+buffer.getLengthInBits() +
+">" +
+totalDataCount * 8 +
+")");
+}
+if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+buffer.put(0, 4);
+}
+while (buffer.getLengthInBits() % 8 !== 0) {
+buffer.putBit(false);
+}
+while (true) {
+if (buffer.getLengthInBits() >= totalDataCount * 8) {
+break;
+}
+buffer.put(QRCode.PAD0, 8);
+if (buffer.getLengthInBits() >= totalDataCount * 8) {
+break;
+}
+buffer.put(QRCode.PAD1, 8);
+}
+return QRCode.createBytes(buffer, rsBlocks);
+};
+QRCode.createBytes = function(buffer, rsBlocks) {
+var offset = 0;
+var maxDcCount = 0;
+var maxEcCount = 0;
+var dcdata = new Array(rsBlocks.length);
+var ecdata = new Array(rsBlocks.length);
+for (var r = 0; r < rsBlocks.length; r++) {
+var dcCount = rsBlocks[r].dataCount;
+var ecCount = rsBlocks[r].totalCount - dcCount;
+maxDcCount = Math.max(maxDcCount, dcCount);
+maxEcCount = Math.max(maxEcCount, ecCount);
+dcdata[r] = new Array(dcCount);
+for (var i = 0; i < dcdata[r].length; i++) {
+dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+}
+offset += dcCount;
+var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+var rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);
+var modPoly = rawPoly.mod(rsPoly);
+ecdata[r] = new Array(rsPoly.getLength() - 1);
+for (var x = 0; x < ecdata[r].length; x++) {
+var modIndex = x + modPoly.getLength() - ecdata[r].length;
+ecdata[r][x] = (modIndex >= 0)? modPoly.get(modIndex) : 0;
+}
+}
+var totalCodeCount = 0;
+for (var y = 0; y < rsBlocks.length; y++) {
+totalCodeCount += rsBlocks[y].totalCount;
+}
+var data = new Array(totalCodeCount);
+var index = 0;
+for (var z = 0; z < maxDcCount; z++) {
+for (var s = 0; s < rsBlocks.length; s++) {
+if (z < dcdata[s].length) {
+data[index++] = dcdata[s][z];
+}
+}
+}
+for (var xx = 0; xx < maxEcCount; xx++) {
+for (var t = 0; t < rsBlocks.length; t++) {
+if (xx < ecdata[t].length) {
+data[index++] = ecdata[t][xx];
+}
+}
+}
+return data;
+};
+module.exports = QRCode;
+};
+return req('index')})();
+function qrUrl(t){try{const q=new QRLIB(-1,0);q.addData(t);q.make();const n=q.getModuleCount(),s=4;let p="";for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))p+=`M${c+s},${r+s}h1v1h-1z`;
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n+2*s} ${n+2*s}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${p}" fill="#000"/></svg>`;return"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)}catch(e){return""}}
+function labels(r){const link=/^http/.test(location.protocol)?location.origin+location.pathname+"?cid="+encodeURIComponent(r.cid):r.cid,q=qrUrl(link),n=Math.max(1,units(r));let h="";const cm=cnt(PL,r),zl=[];Object.keys(cm).sort((a,b)=>zk(a)>zk(b)?1:-1).forEach(z=>{for(let i=0;i<cm[z];i++)zl.push(z)});
+ for(let i=1;i<=n;i++)h+=`<div class=lb><img class=lg src="${LOGO}"><div class=ci>${esc(r.cid)}</div><div><b>${esc(r.name)}</b></div><div class=lc>${esc(zl[i-1]||r.loc)}</div><div>Inbound: ${esc(r.din)} &nbsp; Pallet <b>${i}/${n}</b></div><div>${esc(r.desc).slice(0,60)}</div>${r.flags?`<div class=fl>${esc(r.flags)}</div>`:""}${q?`<img class=qr src="${q}">`:""}</div>`;
+ printDoc(h,r.cid+"_labels")}
+const SEP='<div style="page-break-after:always"></div>',mv=r=>{try{return JSON.parse(r.moves||"[]")}catch(e){return[]}};
+function relDoc(x,m){return head("GOODS RELEASE NOTE",`<b>Ref: ${esc(x.cid)}</b><br>Date: ${esc(m.date)}${m.inv?"<br>Invoice: "+esc(m.inv):""}`)+`<table>${row("Customer",x.name,"Mobile",x.mob)}${row("Collected by",m.by,"Warehouse location",x.loc)}${row("Items released",m.items||x.desc,"Quantity released",m.qty+" "+x.basis+(m.pk?" / "+m.pk+" pkgs":""))}${row("Original goods",x.desc,"Remaining in storage",x.qty+" "+x.basis+(x.pk?" / "+x.pk+" pkgs":""))}</table><p><b>I confirm that I have received the above goods in good condition.</b> The remaining goods continue to be stored under the terms and conditions mentioned overleaf.</p><div class=sg><div>Customer / collector signature &amp; date</div><div>${esc(S.co)} – signature &amp; stamp</div></div>`}
+function partial(r){if(r.outDone)return;const q0=+r.qty||0;
+ $("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">Partial outbound – ${esc(r.name)}</h3><p style="margin:0 0 4px;font-size:13px">${esc(r.cid)} • ${esc(r.mob||"")} • Location: <b>${esc(r.loc)}</b><br>${esc(r.desc).slice(0,90)}</p><p style="margin:0 0 8px;font-size:13px;color:var(--mut)">In storage now: <b>${q0} ${esc(r.basis)}</b>${r.pk?" / "+esc(r.pk)+" pkgs":""}. The balance stays in the warehouse and is billed on the reduced quantity afterwards.</p>
+<div class=g><label>Release date<input type=date id="p1" value="${today()}"></label><label>Quantity released (${esc(r.basis)})<input type=number id="p2" step=0.01 min=0></label><label>Packages / pallets released<input type=number id="p3" min=0></label><label>Collected by (name / ID)<input id="p4"></label><label class=w2>Items released<input id="p5"></label><label>Other charges AED<input type=number id="p6" step=0.01></label><label>Other charges description<input id="p7"></label><label>Discount AED<input type=number id="p8" step=0.01></label><label>Payment received now AED<input type=number id="p9" step=0.01></label></div>
+<div class=bar style="position:static"><button class=btn id="pc">✔ Confirm, print invoice &amp; release note</button><button class="btn o" id="px">Cancel</button></div>`;$("md").style.display="flex";
+ $("px").onclick=()=>$("md").style.display="none";
+ $("pc").onclick=async()=>{const date=$("p1").value||today(),rq=+$("p2").value||0,rp=+$("p3").value||0;
+  if(rq<=0)return toast("Enter the quantity released");if(rq>q0+1e-9)return toast("More than the quantity in storage ("+q0+")");if(date<r.din)return toast("Release date is before the inbound date");
+  if(Math.abs(rq-q0)<1e-9){$("md").style.display="none";toast("That is everything – use full outbound");return outbound(r)}
+  $("pc").disabled=true;const rec=+$("p9").value||0,xi={...r,dout:date,oAmt:$("p6").value,oDesc:$("p7").value,disc:$("p8").value,invDate:today(),paid:n2((+r.paid||0)+rec)},t=tot(xi),p=per(xi),docs=[],inv=[],bills=bl(r),mvs=mv(r),bill=t.t>0.004;
+  if(bill){xi.invNo=await nextInvR();docs.push(invDoc(xi));inv.push(invRow(xi.invNo,xi.invDate,xi,p.from||r.din,date,"Partial outbound",t.tx,t.v,t.t));bills.push({no:xi.invNo,date:today(),ym:date.slice(0,7)+"-P",from:p.from,to:date,units:p.u,amt:+n2(t.tx)})}
+  const m={date,qty:rq,pk:rp,by:$("p4").value.trim(),items:$("p5").value.trim(),inv:xi.invNo||""};mvs.push(m);
+  const bd=r.cycle=="Monthly"?30:r.cycle=="Annually"?365:1,end=p.u>0?addDays(p.from,p.u*bd-1):(r.billedTo||""),
+   x={...r,qty:n2(q0-rq),pk:r.pk?String(Math.max(0,(+r.pk||0)-rp)):r.pk,paid:n2(Math.max(0,(+xi.paid||0)-(bill?t.t:0))),bills:JSON.stringify(bills),billedTo:end>(r.billedTo||"")?end:(r.billedTo||""),moves:JSON.stringify(mvs),oAmt:"",oDesc:"",disc:""},tx=tot(x);
+  x.charge=n2(tx.p);x.balance=n2(tx.t-(+x.paid||0));x.status=stOf(x);
+  if(!await persist(x)){$("pc").disabled=false;return}push([x],false,inv);$("md").style.display="none";if($("cid").value==x.cid)fill(x);
+  docs.push(relDoc(x,m));printDoc(docs.join(SEP),(xi.invNo||x.cid)+"_release")}}
+function pickPartial(){
+ $("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">Partial outbound – select customer</h3><label>Search customers in storage<input id="pk1" placeholder="Name, ID, mobile or location"></label><label style="margin-top:8px">Customer<select id="pk2"></select></label><div class=bar style="position:static"><button class="btn o" id="pk3">Cancel</button></div>`;$("md").style.display="flex";
+ const fl=()=>{const q=$("pk1").value.toLowerCase(),l=recs.filter(r=>!r.outDone&&(!q||[r.cid,r.name,r.mob,r.loc,r.desc,r.idno].join(" ").toLowerCase().includes(q))).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  $("pk2").innerHTML=`<option value="" selected disabled>${l.length?"Select customer…":"No customers in storage found"}</option>`+l.map(r=>`<option value="${esc(r.cid)}">${esc(r.name)} – ${esc(r.cid)} – ${esc(r.qty)} ${esc(r.basis)} – ${esc(r.loc)}</option>`).join("")};
+ fl();$("pk1").oninput=fl;$("pk3").onclick=()=>$("md").style.display="none";$("pk2").onchange=()=>{const r=recs.find(x=>x.cid==$("pk2").value);if(r)partial(r)}}
+$("po").onclick=pickPartial;
+
+let PL=[],drag=null,sel=null,prev=null,layDirty=false,locT=0;const pendLoc=new Set();
+try{PL=JSON.parse(localStorage.getItem("cc_lay")||"[]")}catch(e){}
+const rcm=()=>Object.fromEntries(recs.filter(r=>!r.outDone&&(+r.qty||0)>0).map(r=>[r.cid,r]));
+const dem=(r,t)=>{const q=+r.qty||0;return r.basis=="SQF"?q/10.7639*(t=="G"?+S.bh:+S.mh):q};
+const isHaz=r=>/Hazardous/i.test(r.flags||""),mezOK=r=>String(r.ht||"")!==""&&+r.ht<=(+S.mh||1)+1e-9,own=r=>r.idno||r.cid;
+function zones(){const n=+S.bays||7,z=[];for(const t of["G","M"])for(const s of["L","R"])for(let i=1;i<=n;i++)z.push({id:t+"-"+s+i,t,s,i,cap:t=="G"?(+S.bw)*(+S.bh)*(+S.bd):(+S.ma/n)*(+S.mh)});return z}
+const placedF=(pl,c)=>pl.filter(p=>p.c==c).reduce((s,p)=>s+p.f,0);
+function occIn(pl,z,R){R=R||rcm();let s=0;for(const p of pl)if(p.z==z.id&&R[p.c])s+=p.f*dem(R[p.c],z.t);return s}
+function zoneOK(pl,r,z,R){R=R||rcm();if(z.t=="M"&&!mezOK(r))return"Mezzanine needs ‘Max item height’ of "+S.mh+" m or less on the record";
+ const o=pl.filter(p=>p.z==z.id&&p.c!=r.cid&&R[p.c]);if(isHaz(r)&&o.length)return"Hazardous goods need a bay of their own";if(o.some(p=>isHaz(R[p.c])))return z.id+" holds hazardous goods – no mixing";return""}
+function allocOne(pl,r,zs,R){const c=r.cid;let rem=1-placedF(pl,c);if(rem<1e-6)return true;
+ const n=+S.bays||7,days=r.dout&&r.din?Math.max(1,(new Date(r.dout)-new Date(r.din))/864e5):90,tgt=1+Math.round(Math.min(1,Math.max(0,(days-7)/173))*(n-1)),pref=$("lpm").checked&&mezOK(r),occ={};
+ zs.forEach(z=>occ[z.id]=occIn(pl,z,R));
+ const mine=new Set(pl.filter(p=>R[p.c]&&own(R[p.c])==own(r)).map(p=>p.z)),side=new Set([...mine].map(z=>z.slice(0,3)));
+ const u=units(r),q=x=>x>=rem-1e-6?rem:Math.floor(x*u+1e-9)/u,fit=z=>zoneOK(pl,r,z,R)?0:Math.max(0,q(Math.min(rem,(z.cap-occ[z.id])/dem(r,z.t))));
+ const sc=(z,f)=>(z.cap-occ[z.id]-f*dem(r,z.t))+0.4*Math.abs(z.i-tgt)-(mine.has(z.id)?30:0)-(side.has(z.id.slice(0,3))?6:0)+(z.t=="M"?(pref?-6:6):0);
+ const place=(z,f)=>{const a=pl.find(p=>p.c==c&&p.z==z.id);if(a)a.f+=f;else pl.push({c,z:z.id,f});occ[z.id]+=f*dem(r,z.t);rem-=f};
+ let best=null,bs=1e9;for(const z of zs){const f=fit(z);if(f>=rem-1e-6){const s=sc(z,rem);if(s<bs){bs=s;best=z}}}
+ if(best){place(best,rem);return true}
+ let win=null;bs=1e9;
+ for(const t of["G","M"])for(const sd of["L","R"]){const row=zs.filter(z=>z.t==t&&z.s==sd).sort((a,b)=>a.i-b.i),fs=row.map(fit);
+  for(let a=0;a<row.length;a++){let sum=0;for(let b=a;b<row.length;b++){sum+=fs[b];if(sum>=rem-1e-6){const s2=(b-a+1)*1000+row.slice(a,b+1).reduce((q,z)=>q+sc(z,0),0);if(s2<bs){bs=s2;win=row.slice(a,b+1)}break}}}}
+ if(win){for(const z of win){const f=Math.min(fit(z),rem);if(f>1e-6)place(z,f);if(rem<1e-6)break}return rem<1e-6}
+ for(const z of [...zs].sort((a,b)=>sc(a,0)-sc(b,0))){const f=Math.min(fit(z),rem);if(f>1e-6)place(z,f);if(rem<1e-6)break}
+ return rem<1e-6}
+function autoAll(pl){const R=rcm(),zs=zones(),l=Object.values(R),ot={};l.forEach(r=>ot[own(r)]=(ot[own(r)]||0)+dem(r,"G"));
+ l.sort((a,b)=>(isHaz(b)-isHaz(a))||(ot[own(b)]-ot[own(a)])||(own(a)>own(b)?1:own(a)<own(b)?-1:0)||dem(b,"G")-dem(a,"G"));let miss=0;for(const r of l)if(!allocOne(pl,r,zs,R))miss++;return miss}
+const snap=pl=>{const m={};pl.forEach(p=>(m[p.c]=m[p.c]||[]).push(p.z+":"+p.f.toFixed(3)));Object.keys(m).forEach(k=>m[k]=m[k].sort().join("|"));return m};
+const diff=(a,b)=>[...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>a[k]!=b[k]);
+const splits=pl=>{const m={};pl.forEach(p=>m[p.c]=(m[p.c]||0)+1);return Object.values(m).filter(v=>v>1).length};
+const lcol=c=>{let h=2166136261;for(const ch of String(c))h=Math.imul(h^ch.charCodeAt(0),16777619)>>>0;h=Math.imul(h^(h>>>15),2246822519)>>>0;return`hsl(${(h>>>7)%360} 62% 70%)`};
+function layChanged(cs){layDirty=true;saveLay();cs.forEach(c=>pendLoc.add(c));clearTimeout(locT);locT=setTimeout(flushLoc,1500)}
+async function saveLay(){PL=PL.filter(p=>p.f>1e-6);try{localStorage.setItem("cc_lay",JSON.stringify(PL))}catch(e){}
+ if(db){try{await db.doc("layout/main").set({pl:PL})}catch(e){}}
+ if(!S.hook){layDirty=false;return lsy(false,"no Google Sheet URL in Settings – layout is NOT shared with other devices")}
+ const R=rcm(),b=JSON.stringify({key:S.key||"",action:"setlay",rows:PL.map(p=>[p.c,p.z,p.f.toFixed(5),R[p.c]?R[p.c].name:"",R[p.c]?(p.f*dem(R[p.c],p.z[0])).toFixed(2):""])}),o={method:"POST",headers:{"Content-Type":"text/plain"},body:b};
+ try{const t=(await(await fetch(S.hook,o)).text()).trim();layDirty=t!="ok";if(layDirty)lsy(false,/ppConfig|accounts\.google/i.test(t)?"Google asks for sign-in – access must be Anyone":t=="denied"?"wrong access key – it must match the script exactly (a newly pasted script may have reset it to change-this-key)":"Google script is an old version? Reply: "+t.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,80));else lsy(true,"saved & shared "+new Date().toLocaleTimeString())}
+ catch(e){try{await fetch(S.hook,{...o,mode:"no-cors"});layDirty=false;lsy(false,"sent but not confirmed")}catch(e2){layDirty=true;lsy(false,"offline – kept on this device only")}}}
+function lsy(ok,m){const e=$("lsy");e.textContent=(ok?"✔ Layout ":"⚠ Layout not shared – ")+m;e.style.color=ok?"var(--ok)":"var(--wr)";if(!ok&&m!==lsy.l){lsy.l=m;toast("Layout: "+m,8000)}if(ok)lsy.l=""}
+async function loadLay(force){if(!force&&(layDirty||prev))return;if(!S.hook)return lsy(false,"no Google Sheet URL in Settings");let t="";
+ try{t=await(await fetch(S.hook+"?action=getlay&key="+enc())).text();const j=JSON.parse(t);
+  if(j.ok){PL=j.rows.map(a=>({c:a[0],z:a[1],f:parseFloat(a[2])||0})).filter(p=>p.c&&p.f>0);layDirty=false;lsy.l="";try{localStorage.setItem("cc_lay",JSON.stringify(PL))}catch(e){}$("lsy").textContent="✔ Layout loaded "+new Date().toLocaleTimeString();$("lsy").style.color="var(--ok)";if(!$("v4").hidden)renderLay()}
+  else lsy(false,j.error=="denied"?"wrong access key – it must match the script exactly (a newly pasted script may have reset it to change-this-key)":"Google script is an old version – paste the new script and redeploy")}
+ catch(e){lsy(false,t?(/ppConfig|accounts\.google|ServiceLogin/i.test(t)?"Google is asking for a sign-in – set access to Anyone and redeploy":/authoriz/i.test(t)?"the script needs permission – in Apps Script run any function (e.g. doGet), approve, then redeploy a new version":"Google sent a web page instead of data: "+t.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,90)):/claude/i.test(location.hostname)?"this claude.ai preview link cannot connect to Google – use your GitHub or downloaded copy":"request failed – check the internet connection and that the web app URL ends in /exec")}}
+async function flushLoc(){const R=rcm(),ch=[];for(const c of pendLoc){const r=R[c];if(!r)continue;const ps=PL.filter(p=>p.c==c);if(!ps.length)continue;const s=ps.map(p=>p.z+" ("+(p.f*dem(r,p.z[0])).toFixed(1)+" CBM)").join(", ");if(r.loc!==s){const x={...r,loc:s};if(await persist(x)){ch.push(x);if($("cid").value==x.cid)$("loc").value=s}}}pendLoc.clear();if(ch.length)push(ch,true)}
+function autoOnSave(r){if(!$("lau").checked||!(+r.qty>0)||r.outDone||PL.some(p=>p.c==r.cid))return;const pl=PL.map(p=>({...p})),ok=allocOne(pl,r,zones(),rcm());
+ if(placedF(pl,r.cid)<1e-6)return toast("No free space found for "+r.name+" – see the Layout tab",7000);PL=pl;layChanged([r.cid]);toast(ok?"Allocated to "+pl.filter(p=>p.c==r.cid).map(p=>p.z).join(", "):"Only part of it fits – place the rest in the Layout tab",7000)}
+const HS=[];let pv=false,hl="";
+const units=r=>+r.pk>0?Math.round(+r.pk):Math.max(1,Math.ceil(dem(r,"G")/(+S.pcbm||1.8)));
+const zk=z=>z[0]+z[2]+String(+z.slice(3)).padStart(3,"0");
+function cnt(pl,r){const u=units(r),ps=pl.filter(p=>p.c==r.cid),m={};if(!ps.length)return m;const tf=ps.reduce((s,p)=>s+p.f,0),tot=Math.min(u,Math.round(tf*u)),raw=ps.map(p=>({z:p.z,v:p.f*u,i:Math.floor(p.f*u+1e-9)}));let left=tot-raw.reduce((s,x)=>s+x.i,0);raw.sort((a,b)=>(b.v-b.i)-(a.v-a.i));for(const x of raw){let n=x.i;if(left>0){n++;left--}m[x.z]=n}return m}
+function pushH(){HS.push(JSON.stringify(PL));if(HS.length>30)HS.shift()}
+function moveTo(c,from,to,n){if(prev)return toast("Apply or discard the repack preview first");const R=rcm(),zs=zones(),zt=zs.find(z=>z.id==to),r=R[c];if(!zt||!r||from==to)return;
+ const u=units(r),fr=from?PL.filter(p=>p.c==c&&p.z==from).reduce((s,p)=>s+p.f,0):1-placedF(PL,c);if(fr<1e-6)return toast("Nothing left to place for this customer");
+ const bad=zoneOK(PL,r,zt,R);if(bad)return toast(bad,6000);
+ const free=zt.cap-occIn(PL,zt,R),mx=Math.max(0,free/dem(r,zt.t)),want=n?Math.min(fr,n/u):fr;let mv=Math.min(want,mx);
+ if(mv<want-1e-6)mv=Math.floor(mv*u+1e-9)/u;
+ if(mv<1/u-1e-6&&mv<fr-1e-6)return toast(to+" has no room for a whole pallet ("+Math.max(0,free).toFixed(1)+" CBM free; one needs "+(dem(r,zt.t)/u).toFixed(2)+")",6000);
+ pushH();if(from){const a=PL.find(p=>p.c==c&&p.z==from);a.f-=mv;if(a.f<1e-6)PL.splice(PL.indexOf(a),1)}
+ const b=PL.find(p=>p.c==c&&p.z==to);if(b)b.f+=mv;else PL.push({c,z:to,f:mv});
+ const k=Math.round(mv*u),w=Math.round(want*u);toast(mv<want-1e-4?"Only "+k+" of "+w+" fitted – "+to+" is full":k+" placed in "+to,4000);layChanged([c]);renderLay()}
+function unplace(c,z,n){if(prev)return toast("Apply or discard the repack preview first");const R=rcm(),r=R[c],a=PL.find(p=>p.c==c&&p.z==z);if(!a||!r)return;pushH();const u=units(r),here=cnt(PL,r)[z]||1;
+ if(!n||n>=here)PL.splice(PL.indexOf(a),1);else a.f-=n/u;layChanged([c]);renderLay()}
+function gather(c){if(prev)return;const R=rcm(),r=R[c];if(!r)return;const old=PL.filter(p=>p.c==c).map(p=>({...p}));pushH();PL=PL.filter(p=>p.c!=c);const ok=allocOne(PL,r,zones(),R),nw=PL.filter(p=>p.c==c);
+ if(placedF(PL,c)<placedF(old,c)-1e-6||nw.length>old.length||(nw.length==old.length&&(old.length<2||nw.map(p=>p.z+p.f.toFixed(3)).sort().join()==old.map(p=>p.z+p.f.toFixed(3)).sort().join()))){PL=PL.filter(p=>p.c!=c).concat(old);HS.pop();return toast(old.length<2?"Already together in one place":"Already as close together as the free space allows",5000)}
+ layChanged([c]);renderLay();toast(ok?"Gathered into "+nw.map(p=>p.z).join(", "):"Gathered as far as space allows",5000)}
+function segMenu(c,z){const R=rcm(),r=R[c],p=PL.find(x=>x.c==c&&x.z==z);if(!r||!p)return;const here=cnt(PL,r)[z]||1,u=units(r),opts=zones().filter(t=>t.id!=z&&!zoneOK(PL,r,t,R)).map(t=>`<option value="${t.id}">${t.id} – ${(t.cap-occIn(PL,t,R)).toFixed(1)} CBM free</option>`).join("");
+ $("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">${esc(r.name)} – ${z}</h3><p style="font-size:13px">${esc(c)} • <b>${here}</b> of ${u} pallet(s)/package(s) here • ${(p.f*dem(r,z[0])).toFixed(1)} CBM<br>${esc(r.desc)}</p><div class=g><label>How many to move<input type=number id="sm0" min=1 max="${here}" value="${here}"></label><label>Move to…<select id="sm1"><option value="" selected disabled>Select bay</option>${opts}</select></label></div><div class=bar style="position:static"><button class="btn o" id="sm2">Remove from ${z}</button><button class="btn o" id="sm5">Gather all together</button><button class="btn o" id="sm3">Open record</button><button class="btn o" id="sm4">Close</button></div>`;$("md").style.display="flex";
+ const nn=()=>Math.max(1,Math.min(here,Math.round(+$("sm0").value)||here));
+ $("sm1").onchange=()=>{const n=nn(),t=$("sm1").value;$("md").style.display="none";moveTo(c,z,t,n)};$("sm2").onclick=()=>{const n=nn();$("md").style.display="none";unplace(c,z,n)};$("sm5").onclick=()=>{$("md").style.display="none";gather(c)};$("sm3").onclick=()=>{$("md").style.display="none";fill(r);tab(1)};$("sm4").onclick=()=>$("md").style.display="none"}
+function renderLay(){const zs=zones(),R=rcm(),pl=prev||PL,occ={};zs.forEach(z=>occ[z.id]=occIn(pl,z,R));const CM={};Object.values(R).forEach(r=>CM[r.cid]=cnt(pl,r));
+ const hc=r=>hl?([r.name,r.cid,r.idno,r.desc,r.mob].join(" ").toLowerCase().includes(hl)?" hl":" dim"):"";
+ const bay=z=>{let nz=0;const ps=pl.filter(p=>p.z==z.id&&R[p.c]);
+  const segs=ps.map(p=>{const r=R[p.c],k=CM[p.c][z.id]||0,cb=p.f*dem(r,z.t),w=cb/z.cap*100;nz+=k;return`<div class="sg2${stOf(r)=="Overdue"?" od":""}${sel&&sel.c==p.c?" sl":""}${hc(r)}" draggable="true" data-c="${esc(p.c)}" data-z="${z.id}" style="width:${w}%;background:${lcol(own(r))}" title="${esc(r.name)} • ${esc(p.c)}&#10;${k} pallet(s)/package(s) • ${cb.toFixed(1)} CBM here (${Math.round(p.f*100)}% of ${esc(r.qty)} ${esc(r.basis)})&#10;${esc(r.desc)}">${w>16?esc(r.name).slice(0,11)+(k>1?" ×"+k:""):""}</div>`}).join(""),free=z.cap-occ[z.id];
+  const tiles=pv?`<div class="pw">${ps.map(p=>{const r=R[p.c],k=CM[p.c][z.id]||0;return Array.from({length:k},(_,i)=>`<div class="pt${hc(r)}" draggable="true" data-c="${esc(p.c)}" data-z="${z.id}" data-n="1" style="background:${lcol(own(r))}" title="${esc(r.name)} • ${esc(p.c)}&#10;1 of ${k} here (${units(r)} in total) – drag to move"></div>`).join("")}).join("")}</div>`:"";
+  return`<div class="bay${free<-0.01?" ov":""}${pv?" pv":""}" data-z="${z.id}"><div class="bt"><b>${z.id}</b><span>${nz} pcs • ${free.toFixed(1)} free / ${z.cap.toFixed(1)}</span></div>${tiles}<div class="bb${pv?" thin":""}">${segs}</div></div>`};
+ const colm=(s,t)=>`<div class="pc${s=="R"?" r":""}">${zs.filter(z=>z.t==t&&z.s==s).sort((a,b)=>b.i-a.i).map(bay).join("")}</div>`;
+ const plan=(t,ti)=>`<div class="pl"><h4>${ti}</h4><div class="pg">${colm("L",t)}<div class="ai">AISLE – forklift</div>${colm("R",t)}</div><div class="dk">▼ Dock / entrance – bay 1 nearest ▼</div></div>`;
+ $("plans").innerHTML=plan("G","Ground floor – "+zs.filter(z=>z.t=="G").length+" bays")+plan("M","Mezzanine – "+zs.filter(z=>z.t=="M").length+" zones (≤ "+S.mh+" m goods)");
+ const un=Object.values(R).map(r=>({r,u:1-placedF(pl,r.cid)})).filter(x=>x.u>1e-6).sort((a,b)=>dem(b.r,"G")*b.u-dem(a.r,"G")*a.u);
+ $("chips").innerHTML=un.map(x=>{const r=x.r,k=Math.max(1,Math.round(x.u*units(r))),hd=`${esc(r.name)} · ${esc(r.qty)} ${esc(r.basis)} · ${k} to place · need ${(dem(r,"G")*x.u).toFixed(1)} CBM${mezOK(r)?" 🔻":""}${isHaz(r)?" ☣":""}`;
+  return pv?`<div class="cg"><span>${hd}</span><div class="pw">${Array.from({length:k},()=>`<div class="pt${hc(r)}" draggable="true" data-c="${esc(r.cid)}" data-z="" data-n="1" style="background:${lcol(own(r))}"></div>`).join("")}</div></div>`:`<div class="chip${sel&&sel.c==r.cid?" sl":""}${hc(r)}" draggable="true" data-c="${esc(r.cid)}" data-z="" style="border-left-color:${lcol(own(r))}">${hd}</div>`}).join("")||"<span style=\"color:var(--ok)\">✔ Everyone is placed</span>";
+ const used=t=>zs.filter(z=>z.t==t).reduce((s,z)=>s+occ[z.id],0),cap=t=>zs.filter(z=>z.t==t).reduce((s,z)=>s+z.cap,0),pc=t=>cap(t)?Math.round(used(t)/cap(t)*100):0,placedP=Object.values(R).reduce((s,r)=>s+Object.values(CM[r.cid]).reduce((a,b)=>a+b,0),0);
+ $("lst").innerHTML=`<div>Ground used<b>${used("G").toFixed(0)} / ${cap("G").toFixed(0)} CBM (${pc("G")}%)</b></div><div>Mezzanine used<b>${used("M").toFixed(0)} / ${cap("M").toFixed(0)} CBM (${pc("M")}%)</b></div><div>Free in total<b>${(cap("G")+cap("M")-used("G")-used("M")).toFixed(0)} CBM</b></div><div>Pallets/packages placed<b>${placedP}</b></div><div>Customers to place<b>${un.length}</b></div><div>Split across bays<b>${splits(pl)}</b></div>`;
+ if(prev){const mvd=diff(snap(PL),snap(prev)).length;$("lban").innerHTML=`<div class="calc"><div style="flex:1;font-size:13px">Repack preview: <b>${mvd}</b> customer(s) would move • split customers ${splits(PL)} → ${splits(prev)} • not placed: ${un.length}</div><button class="btn s" id="lap">Apply</button><button class="btn o" id="lds" style="color:#fff">Discard</button></div>`;
+  $("lap").onclick=()=>{pushH();const old=snap(PL);PL=prev;prev=null;layChanged(diff(old,snap(PL)));renderLay()};$("lds").onclick=()=>{prev=null;renderLay()}}else $("lban").innerHTML=""}
+$("la").onclick=()=>{if(prev)return;pushH();const b=snap(PL),pl=PL.map(p=>({...p})),miss=autoAll(pl);PL=pl;layChanged(diff(b,snap(PL)));renderLay();toast(miss?miss+" customer(s) could not be fully placed – not enough space":"Everyone is allocated",6000)};
+$("lr").onclick=()=>{prev=[];autoAll(prev);renderLay()};$("lrl").onclick=async()=>{prev=null;sel=null;await loadLay(true);renderLay()};document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!$("v4").hidden)loadLay()});
+$("lpv").onchange=()=>{pv=$("lpv").checked;renderLay()};$("lq").oninput=()=>{hl=$("lq").value.trim().toLowerCase();renderLay()};
+$("lun").onclick=()=>{if(prev||!HS.length)return toast("Nothing to undo",2500);const b=snap(PL);PL=JSON.parse(HS.pop());layChanged(diff(b,snap(PL)));renderLay();toast("Undone",2000)};
+const lv=$("v4");
+lv.addEventListener("dragstart",e=>{const t=e.target.closest("[data-c]");if(!t||prev){e.preventDefault();return}drag={c:t.dataset.c,z:t.dataset.z||null,n:t.dataset.n?+t.dataset.n:null};e.dataTransfer.setData("text/plain",t.dataset.c);e.dataTransfer.effectAllowed="move"});
+lv.addEventListener("dragover",e=>{const t=e.target.closest(".bay,#unal");lv.querySelectorAll(".dh").forEach(x=>x.classList.remove("dh"));if(t){e.preventDefault();t.classList.add("dh")}});
+lv.addEventListener("dragend",()=>lv.querySelectorAll(".dh").forEach(x=>x.classList.remove("dh")));
+lv.addEventListener("drop",e=>{e.preventDefault();lv.querySelectorAll(".dh").forEach(x=>x.classList.remove("dh"));const b=e.target.closest(".bay"),u=e.target.closest("#unal");if(!drag)return;if(b)moveTo(drag.c,drag.z,b.dataset.z,drag.n);else if(u&&drag.z)unplace(drag.c,drag.z,drag.n);drag=null});
+lv.addEventListener("click",e=>{if(prev)return;const b=e.target.closest(".bay");
+ if(sel&&b){const s2=sel;sel=null;return moveTo(s2.c,s2.z,b.dataset.z,s2.n)}
+ const t=e.target.closest(".chip,.pt,.sg2");if(!t)return;
+ if(t.dataset.z===""){sel=sel&&sel.c==t.dataset.c&&sel.n==(+t.dataset.n||null)?null:{c:t.dataset.c,z:null,n:+t.dataset.n||null};return renderLay()}
+ segMenu(t.dataset.c,t.dataset.z)});
+lv.addEventListener("dblclick",e=>{const c=e.target.closest(".chip,.pt");if(!c||c.dataset.z!==""||prev)return;const R=rcm(),r=R[c.dataset.c];if(!r)return;pushH();const pl=PL.map(p=>({...p})),ok=allocOne(pl,r,zones(),R);PL=pl;sel=null;layChanged([r.cid]);renderLay();toast(ok?"Placed":"Only part fits",4000)});
+const f=x=>x?esc(x):"________";
+function agrDoc(r){const U={Daily:"day",Monthly:"month (30-day period)",Annually:"year (365-day period)"}[r.cycle]||"period",ins=/Insured/i.test(r.flags||""),co=esc(S.co||"the Company"),nm=f(r.name);
+ return`<div class="ag"><div class="agt"><img src="${LOGO}"><div style="flex:1"><h3>STORAGE SERVICES AGREEMENT – TERMS &amp; CONDITIONS</h3><span>Overleaf of Storage Intake Form • Ref <b>${esc(r.cid)}</b></span></div><div style="text-align:right">${co}<br>${esc(S.ph||"")} ${esc(S.em||"")}</div></div>
+<p class="agi">This Agreement is made on <b>${f(r.edate)}</b> between <b>${co}</b> (Trade Licence No. ${f(S.lic)}; TRN ${f(S.trn)}; ${f(S.addr)}) (“the <b>Company</b>”) and <b>${nm}</b> (${esc(r.idtype||"ID")} No. ${f(r.idno)}${r.trn?"; TRN "+esc(r.trn):""}; address ${f(r.addr)}; mobile ${f(r.mob)}${r.mob2?" / "+esc(r.mob2):""}; email ${f(r.email)}) (“the <b>Customer</b>”). The Storage Intake Form on the reverse (Ref ${esc(r.cid)}) forms part of this Agreement.</p>
+<p class="agk"><b>Agreed terms:</b> ${f(r.qty)} ${esc(r.basis||"")} • ${esc(r.cycle||"")} billing • AED ${f(r.rate)} per ${esc(r.basis||"unit")} per ${U} • inbound ${f(r.din)} • expected outbound ${r.dout?esc(r.dout):"open-ended"} • deposit AED ${n2(r.dep)} • declared value ${r.val?"AED "+esc(r.val):"not declared"} • packages ${f(r.pk)} • weight ${f(r.wt)} kg • item height ${r.ht?esc(r.ht)+" m":"not stated"} • location ${r.loc?esc(r.loc):"to be allocated by the Company"} • authorised pick-up: ${f(r.auth)} ${esc(r.authid||"")}</p>
+<div class="agc">
+<p><b>1. Storage service.</b> The Company provides covered, ambient storage for the Customer’s goods in its warehouse as custodian of the goods, not as insurer. The Company decides, and may change, the exact bay, level and position (including mezzanine), may consolidate or relocate the goods inside the warehouse without notice and may store them alongside other customers’ goods. The location shown overleaf is indicative; the Customer has no right to a specific space and no right to enter the storage area except as stated in clause 10.</p>
+<p><b>2. Fees and payment.</b> Fees are as stated above, plus handling charges (loading, unloading, forklift, labelling, documentation, special requests) at the Company’s rate card, plus VAT at the prevailing rate (currently 5%). Fees are payable in advance for each billing period and any part of a period is charged as a full period. Storage continues to be charged at the same rate until the goods are collected, including after the expected outbound date. Invoices are due on receipt. Amounts unpaid ${esc(S.grace)} days after the due date carry an agreed late-payment charge of ${esc(S.late)}% per month on the overdue amount (limited to the maximum permitted by law) plus the Company’s reasonable collection and legal costs. The Company may revise its rates for any renewed or continuing period on ${esc(S.noticed)} days’ notice. Fees are non-refundable.</p>
+<p><b>3. Security deposit.</b> Any deposit is security for the Customer’s obligations, is not a prepayment and bears no interest. The Company may apply it against any amount due. The balance is refunded within ${esc(S.depd)} days after all goods are collected and all dues are settled.</p>
+<p><b>4. Term and termination.</b> The Agreement starts on the inbound date and continues until all goods are collected and all dues are paid. Either party may end it by ${esc(S.noticed)} days’ written notice. The Company may end it immediately, and require collection within the period it specifies, if the Customer fails to pay, breaches this Agreement, stores unlawful, prohibited or dangerous goods, or if required by law or an authority.</p>
+<p><b>5. Customer declarations.</b> The Customer declares and warrants that it owns or is duly authorised to store the goods; that they are lawful, free of third-party claims, liens or sanctions and are not the proceeds of crime; that the description, quantity, weight, value and item height given are accurate; that they are properly packed, labelled, palletised and stable for stacking; and that all customs, import/export permits, duties and taxes are the Customer’s responsibility. The Company does not act as a customs or bonded warehouse unless agreed in writing.</p>
+<p><b>6. Prohibited and restricted goods.</b> The following may not be stored: explosives, firearms or ammunition, narcotics or controlled substances, counterfeit, stolen or illegal goods, live animals, cash, jewellery, securities, alcohol or pork products without proper licence, and food or other goods needing temperature control. Flammable, corrosive, toxic, radioactive, pressurised, lithium-battery or other hazardous goods are accepted only with the Company’s prior written approval, a safety data sheet and compliance with Civil Defence requirements. The Company may refuse, segregate, remove or dispose of such goods at the Customer’s cost and report them to the authorities.</p>
+<p><b>7. Receipt and records.</b> Goods are accepted by external package count and visible condition only (“said to contain”). The Company does not verify contents, inner quantity, quality or weight. The condition recorded overleaf (${esc(r.cond||"Good")}) and the Company’s inbound records, photographs and CCTV are conclusive evidence of what was received, unless proven wrong.</p>
+<p><b>8. Care and insurance.</b> The Company will exercise reasonable care in keeping the goods. Storage is ordinary ambient warehousing with no temperature or humidity control and no guarantee against dust, humidity, pests or rodents. The Company does not insure the goods. The Customer must insure them at its own cost for their full value against all risks (including fire, theft and water) and ensure its insurer waives recourse against the Company to the extent allowed by law. ${ins?"The Customer confirms the goods are insured by the Customer.":"The Customer confirms the Company has not arranged any insurance."}</p>
+<p><b>9. Limitation of liability. To the extent permitted by UAE law, the Company is not liable for loss or damage caused by events beyond its reasonable control (including fire, flood, storm, power failure, theft or acts of third parties despite reasonable security, strikes, war, epidemic or government action), by inherent defects, inadequate packing, or the acts of the Customer or its agents, nor for indirect or consequential loss or loss of profit. The Company’s total liability for any claim or series of related claims shall not exceed the lowest of (a) the proven direct loss, (b) the declared value stated overleaf, and (c) AED ${Number(S.cap||0).toLocaleString("en")}. Nothing in this clause limits liability for fraud, gross negligence or deliberate misconduct, or any liability that cannot lawfully be limited.</b> The Customer must inspect the goods at collection and notify any shortage or damage in writing at that time or within 48 hours; otherwise, to the extent permitted by law, the goods are deemed delivered complete and in good order.</p>
+<p><b>10. Access, collection and release.</b> Goods are released only to the Customer or the authorised pick-up person named overleaf, on presentation of an original matching Emirates ID or passport, during working hours and on at least 24 hours’ notice; any other person needs written authority signed by the Customer with ID copies. The Company may refuse release if any amount is due, if identity is doubtful, or under an order of an authority. On a partial collection, storage is invoiced up to the release date and the balance stays in storage on the reduced quantity. The Customer and its representatives may enter the warehouse only by prior booking, escorted, and must follow safety rules; the Customer is liable for damage they cause.</p>
+<p><b>11. Lien, sale and abandoned goods. The Company has the right to retain the goods until all amounts due to it are paid. If amounts remain unpaid ${esc(S.aband)} days after written notice, or goods are not collected within ${esc(S.aband)} days after termination, expiry or the expected outbound date, the Company may, to the extent permitted by law and where required with the permission of the competent court, sell the goods by public auction or private sale at a reasonable price, apply the proceeds to the amounts due and costs of sale, and pay any surplus to the Customer without interest. The Customer remains liable for any shortfall.</b> Perishable, hazardous or deteriorating goods may be sold or disposed of earlier at the Customer’s cost, with notice where practicable. Goods of negligible value may be disposed of or donated.</p>
+<p><b>12. Indemnity. The Customer shall indemnify the Company against all claims, fines, losses and costs (including reasonable legal fees) arising from the goods or the Customer’s acts, including contamination, infestation, leakage, fire, damage to other customers’ goods or to the warehouse, inaccurate declarations, unlawful goods or breach of this Agreement.</b></p>
+<p><b>13. Inspection and authorities.</b> The Company may inspect, open, photograph, scan, repack, fumigate or treat the goods, with or without notice, where it reasonably suspects a breach, danger or infestation or where an authority requires it, at the Customer’s cost. The Company may cooperate with, and disclose information to, authorities as required by law. The premises are under CCTV.</p>
+<p><b>14. Force majeure and hardship.</b> Neither party is liable for failure to perform caused by events beyond its control, except that payment for storage already provided remains due.</p>
+<p><b>15. Personal data. In accordance with the UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021), the Customer consents to the Company collecting and processing ID copies, photographs of the Customer’s ID and goods, and contact details to perform this Agreement, invoice and keep tax records, protect security, comply with law and send notices and reminders by WhatsApp, SMS and email.</b> Data is held on the Company’s systems and cloud providers, which may be outside the UAE where permitted by law. ID photographs are deleted about ${esc(S.idret)} days after the file is closed; invoices and records are kept for the period required by law (at least five years for tax records). The Customer may request access or correction at ${f(S.em)}.</p>
+<p><b>16. Notices and electronic records.</b> Notices sent to the mobile number or email above are valid when sent and treated as received on the next business day; the Customer must notify any change in writing. Electronic records, messages, invoices and signatures are valid and admissible (Federal Decree-Law No. 46 of 2021).</p>
+<p><b>17. General.</b> This Agreement and the Intake Form are the entire agreement and replace prior understandings; changes must be in writing and signed by the Company. If any term is invalid the rest continues. Delay in enforcing a right is not a waiver. The Customer may not assign this Agreement without the Company’s written consent. Multiple customers are jointly and severally liable. A person signing for a company confirms authority to bind it.</p>
+<p><b>18. Governing law and disputes. This Agreement is governed by the laws of the United Arab Emirates as applied in the Emirate of Dubai, including the Civil Transactions Law (Federal Decree-Law No. 25 of 2025) and the Commercial Transactions Law (Federal Decree-Law No. 50 of 2022). The parties shall first try to settle any dispute amicably within 15 days of written notice; failing that, the courts of ${esc(S.court)} have exclusive jurisdiction,</b> without prejudice to the Company’s right to seek urgent or conservatory measures anywhere. The Agreement is in English; a certified Arabic translation may be submitted to the court.</p>
+</div>
+<div class="ack"><b>Acknowledgement:</b> I, <b>${nm}</b>, confirm that I have read and understood this Agreement in full (in English, or as explained to me in: ____________), have had the opportunity to ask questions, and accept it, including the highlighted clauses 9, 11, 12, 15 and 18. I confirm the details above are correct. ☐ I received a copy.
+<div class="sgn"><div>Customer signature<br>${nm} • ${esc(r.idtype||"ID")} ${f(r.idno)}</div><div>Date</div><div>Customer initials</div><div>For ${co} – name, signature &amp; stamp</div></div></div></div>`}
+const formDoc=r=>'<div class="fp">'+frontDoc(r)+'</div>'+agrDoc(r);
+let adm=!!sessionStorage.getItem("cc_pin"),logoTaps=[];
+function applyLock(){$("t3").style.display=(S.hook&&!adm)?"none":"";$("slk").style.display=(S.hook&&adm)?"":"none";if(S.hook&&!adm&&!$("v3").hidden)tab(1)}
+async function adminVerify(pin){if(!S.hook)return true;try{const j=await(await fetch(S.hook+"?action=adminok&key="+enc()+"&pin="+encodeURIComponent(pin))).json();if(j.ok&&j.nopin)toast("No admin PIN is set in the Google script yet – run setAdminPin (see the guide). Settings are unprotected until you do.",9000);return !!j.ok}catch(e){toast("Could not reach Google to check the PIN",5000);return false}}
+function adminPrompt(){$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">Admin unlock</h3><label>Admin PIN<input id="ap1" type="password" autocomplete="off"></label><div class=bar style="position:static"><button class=btn id="ap2">Unlock settings</button><button class="btn o" id="ap3">Cancel</button></div>`;$("md").style.display="flex";$("ap1").focus();
+ const go=async()=>{const pin=$("ap1").value;if(!pin)return;$("ap2").disabled=true;if(await adminVerify(pin)){sessionStorage.setItem("cc_pin",pin);adm=true;$("md").style.display="none";applyLock();sfill();tab(3);toast("Settings unlocked for this session",3000)}else{$("ap2").disabled=false;toast("Wrong admin PIN",3000)}};
+ $("ap2").onclick=go;$("ap1").onkeydown=e=>{if(e.key=="Enter")go()};$("ap3").onclick=()=>$("md").style.display="none"}
+$("lg").addEventListener("click",()=>{const t=Date.now();logoTaps=logoTaps.filter(x=>t-x<2000);logoTaps.push(t);if(logoTaps.length>=3){logoTaps=[];if(S.hook&&!adm)adminPrompt();else if(adm)toast("Settings already unlocked",2000)}});
+$("slk").onclick=()=>{sessionStorage.removeItem("cc_pin");adm=false;applyLock();tab(1);toast("Settings locked",2000)};
+function openQ(){const c=new URLSearchParams(location.search).get("cid"),r=c&&recs.find(x=>x.cid==c);if(r){fill(r);tab(1);toast("Opened "+c)}}
+$("lbl").onclick=async()=>{const r=await save();if(r)labels(r)};$("rmd").onclick=reminders;$("mi").onclick=monthly;
+const SK=["co","trn","addr","ph","em","vat","pre","bank","foot","hook","key","bays","bw","bh","bd","ma","mh","lic","court","cap","late","grace","aband","depd","noticed","idret","pcbm"];
+function sfill(){SK.forEach(k=>$("s_"+k).value=S[k]??"")}
+$("ss").onclick=async()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());try{if(db)await db.doc("settings/main").set(S);else localStorage.setItem("cc_set",JSON.stringify(S));toast("Settings saved");pushSet();applyLock()}catch(e){toast("Could not save settings")}calc()};
+$("st").onclick=()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());push([{cid:"TEST-000",name:"Test row - delete me",status:"Test"}])};
+function tab(n){[1,2,3,4].forEach(i=>{$("v"+i).hidden=n!=i;$("t"+i).className=n==i?"on":""})}
+$("t1").onclick=()=>tab(1);$("t2").onclick=()=>{render();tab(2);loadRemote()};$("t4").onclick=()=>{renderLay();tab(4);loadLay()};$("t3").onclick=()=>{sfill();tab(3)};
+try{recs=JSON.parse(localStorage.getItem("cc_recs")||"[]");Object.assign(S,JSON.parse(localStorage.getItem("cc_set")||"{}"))}catch(e){}
+blank();render();sfill();applyLock();loadSet().then(loadRemote).then(loadLay).then(openQ);setInterval(()=>{if(!$("v2").hidden)loadRemote()},30000);setInterval(()=>{if(!$("v4").hidden)loadLay()},10000);
+(async()=>{try{db=await claude.use("db");dl=await claude.use("downloads");
+ if(db){recs=[];db.collection("records").onSnapshot(s=>{recs=s.docs.map(d=>d.data()).sort((a,b)=>(b.saved||"").localeCompare(a.saved||""));if(!$("name").value)$("cid").value=nextId();render()});
+  const d=await db.doc("settings/main").get();if(d.exists){Object.assign(S,d.data());sfill()}const l=await db.doc("layout/main").get();if(l.exists)PL=l.data().pl||[]}
+ if(last&&dl)$("sv").hidden=false}catch(e){}})();
+$("shcss").textContent=[...document.styleSheets[0].cssRules].filter(r=>/^\.sh/.test(r.selectorText||"")).map(r=>r.cssText).join("");
+
+/* ================= FIREBASE + GOOGLE DRIVE (photos) LAYER – replaces the Google Sheet functions above ================= */
+let fs=null,au=null,me="",mA={},mC={},photoQ={},firstLoad=true,cleaned=false;
+const FBV="10.12.2",FBCFG=()=>{try{return JSON.parse(localStorage.getItem("cc_fbcfg")||"null")}catch(e){return null}};
+const loadJs=u=>new Promise((ok,no)=>{const s=document.createElement("script");s.src=u;s.onload=ok;s.onerror=()=>no(new Error("Could not load "+u));document.head.appendChild(s)});
+function ov(html){let o=$("fbov");if(!o){o=document.createElement("div");o.id="fbov";o.style.cssText="position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;padding:14px;overflow:auto";document.body.appendChild(o)}
+ o.innerHTML=`<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;max-width:540px;width:100%"><img src="${LOGO}" style="height:60px;background:#fff;border-radius:6px"><div style="margin-top:8px">${html}</div></div>`;o.style.display="flex"}
+function setupScreen(msg){ov(`<h3 style="margin:4px 0;color:var(--nv)">One-time device setup</h3>${msg?`<p style="color:var(--wr)">${esc(msg)}</p>`:""}<label>Firebase config (paste the whole block from Firebase console → Project settings → Your apps)<textarea id="fc" rows="6" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea></label><label>Google Drive photo-script URL (ends in /exec) – optional now, can be added later<input id="fh"></label><label>Photo-script access key<input id="fk" autocomplete="off"></label><div class=bar style="position:static"><button class=btn id="fgo">Continue</button></div>`);
+ $("fgo").onclick=()=>{const c={};String($("fc").value).replace(/(\w+)\s*:\s*["']([^"']+)["']/g,(m,k,v)=>{c[k]=v});if(!c.apiKey||!c.projectId)return setupScreen("That doesn't look like a Firebase config – it needs apiKey and projectId.");
+  try{localStorage.setItem("cc_fbcfg",JSON.stringify(c));const s=JSON.parse(localStorage.getItem("cc_set")||"{}");if($("fh").value.trim())s.hook=$("fh").value.trim();if($("fk").value.trim())s.key=$("fk").value.trim();localStorage.setItem("cc_set",JSON.stringify(s))}catch(e){}location.reload()}}
+function loginScreen(msg){ov(`<h3 style="margin:4px 0;color:var(--nv)">Staff sign-in</h3>${msg?`<p style="color:var(--wr)">${esc(msg)}</p>`:""}<label>Email<input id="le" type="email" autocomplete="username"></label><label>Password<input id="lp" type="password" autocomplete="current-password"></label><div class=bar style="position:static"><button class=btn id="lg2">Sign in</button><button class="btn o" id="lc">Change setup</button></div>`);
+ const go=async()=>{$("lg2").disabled=true;try{await au.signInWithEmailAndPassword($("le").value.trim(),$("lp").value)}catch(e){loginScreen(/network/i.test(e.code||"")?"No internet connection":"Wrong email or password")}};
+ $("lg2").onclick=go;$("lp").onkeydown=e=>{if(e.key=="Enter")go()};$("lc").onclick=()=>{localStorage.removeItem("cc_fbcfg");location.reload()}}
+async function initFB(c){try{for(const f of["app","auth","firestore"])await loadJs(`https://www.gstatic.com/firebasejs/${FBV}/firebase-${f}-compat.js`)}catch(e){return setupScreen("Could not load Firebase ("+e.message+"). Check the internet connection and reload.")}
+ firebase.initializeApp(c);fs=firebase.firestore();fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});au=firebase.auth();
+ au.onAuthStateChanged(u=>{if(u)startFB(u);else loginScreen()})}
+function lst(q,m){q.onSnapshot(s=>{for(const k in m)delete m[k];s.docs.forEach(d=>m[d.id]=d.data());mergeRecs()},e=>sy(false,e.code=="permission-denied"?"permission denied – check the Firestore rules":e.message))}
+function mergeRecs(){recs=Object.values({...mC,...mA}).map(r=>{const p=photoQ[r.cid];return p?{...r,idImg:p.id,gImgs:p.goods}:r}).sort((a,b)=>String(b.saved||"").localeCompare(String(a.saved||"")));render();if(firstLoad){firstLoad=false;openQ()}}
+function startFB(u){me=u.email||"";const o=$("fbov");if(o)o.style.display="none";recs=[];
+ $("so").style.display="";$("so").textContent="Sign out ("+me.split("@")[0]+")";
+ fs.doc("admins/"+me).get().then(d=>{adm=d.exists;applyLock();if(adm&&!cleaned){cleaned=true;cleanTh()}}).catch(()=>{adm=false;applyLock()});
+ lst(fs.collection("records").where("outDone","==",0),mA);
+ lst(fs.collection("records").where("invDate",">=",addDays(today(),-180)),mC);
+ fs.doc("settings/main").onSnapshot(d=>{if(d.exists){const s=d.data();SHK.forEach(k=>{if(s[k]!==undefined)S[k]=s[k]});sfill();calc()}});
+ fs.doc("layout/main").onSnapshot(d=>{if(d.metadata.hasPendingWrites||prev)return;if(d.exists)PL=d.data().pl||[];lsy(true,"live "+new Date().toLocaleTimeString());if(!$("v4").hidden)renderLay()});
+ sy(true,"signed in as "+me);applyLock()}
+const thumb=s=>new Promise(ok=>{const im=new Image();im.onload=()=>{const k=Math.min(1,150/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,im.width*k);c.height=Math.max(1,im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",.5))};im.onerror=()=>ok("");im.src=s});
+async function gs(b){if(!S.hook)return null;try{return JSON.parse(await(await fetch(S.hook,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({key:S.key||"",...b})})).text())}catch(e){return null}}
+async function upPhotos(r){if(!S.hook){sy(false,"Google Drive photo-script URL not set (Settings) – photos kept on this device only");return}
+ const nt=await Promise.all([r.idImg?thumb(r.idImg):"",...(r.gImgs||[]).map(thumb)]),j=await gs({action:"photos",cid:r.cid,name:r.name,id:r.idImg||"",goods:r.gImgs||[]}),upd={idTh:nt[0]||r.idTh||"",gTh:[...(r.gTh||[]),...nt.slice(1).filter(Boolean)]};
+ if(j&&j.ok){upd.idLink=j.id||r.idLink||"";upd.gLinks=[...(r.gLinks||[]),...(j.goods||[])];delete photoQ[r.cid];r.idImg="";r.gImgs=[];sy(true,"photos saved to Drive")}
+ else{sy(false,"photos NOT uploaded to Drive ("+(j&&j.error=="denied"?"wrong photo-script key":"script unreachable")+") – kept on this device; save the record again to retry");upd.gTh=r.gTh||[]}
+ Object.assign(r,upd);fs.doc("records/"+r.cid).update(upd).catch(()=>{})}
+async function persist(r){if(!fs){toast("Not signed in");return false}r.outDone=r.outDone?1:0;r.saved=new Date().toISOString();r.by=me;const i=recs.findIndex(x=>x.cid==r.cid);if(i>=0)recs[i]=r;else recs.unshift(r);
+ const d=JSON.parse(JSON.stringify(r));delete d.idImg;delete d.gImgs;
+ fs.doc("records/"+r.cid).set(d).catch(e=>toast("Save failed: "+e.message,9000));
+ fs.collection("activity").add({cid:r.cid,name:r.name||"",status:r.status||"",by:me,at:r.saved}).catch(()=>{});
+ fs.waitForPendingWrites().then(()=>sy(true,"saved "+new Date().toLocaleTimeString())).catch(()=>{});render();return true}
+async function push(list,noImg,inv){if(!fs)return;
+ (inv||[]).forEach(a=>fs.doc("invoices/"+a[0]).set({no:a[0],date:a[1],cid:a[2],customer:a[3],trn:a[4],type:a[5],from:a[6],to:a[7],taxable:+a[8],vat:+a[9],total:+a[10],by:me}).catch(e=>toast("Invoice register: "+e.message,6000)));
+ for(const r of list){if(r.outDone&&!r.cs){r.cs=1;fs.doc("records/"+r.cid).update({cs:1}).catch(()=>{});gs({action:"closed",cid:r.cid,date:r.invDate||today()})}
+  if(!noImg&&(r.idImg||(r.gImgs||[]).length)){photoQ[r.cid]={id:r.idImg||"",goods:r.gImgs||[]};upPhotos(r)}}}
+async function nextInvR(){try{const n=await fs.runTransaction(async t=>{const ref=fs.doc("counters/inv"),d=await t.get(ref),n=(d.exists?d.data().n:0)+1;t.set(ref,{n});return n});return S.pre+String(n).padStart(5,"0")}catch(e){toast("Could not get a shared invoice number (offline?) – used a local one, check for duplicates",8000);return nextInv()}}
+async function loadSet(){}
+function pushSet(){if(!fs)return;const s={};SHK.forEach(k=>s[k]=S[k]);fs.doc("settings/main").set(s).catch(()=>toast("Only an admin can change company settings",6000))}
+async function loadRemote(){}
+async function saveLay(){PL=PL.filter(p=>p.f>1e-6);if(!fs)return;layDirty=false;fs.doc("layout/main").set({pl:PL,by:me,at:new Date().toISOString()}).then(()=>lsy(true,"saved & shared "+new Date().toLocaleTimeString())).catch(e=>lsy(false,e.message))}
+async function loadLay(force){if(force)toast("Layout updates live – nothing to reload",2500)}
+function applyLock(){$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
+async function adminVerify(){return adm}
+function adminPrompt(){toast(adm?"You are an admin":"Admin rights are given in the Firebase console (admins list)",4000)}
+async function cleanTh(){const lim=addDays(today(),-(+S.idret||50));try{const s=await fs.collection("records").where("invDate","<",lim).get();s.docs.forEach(d=>{const r=d.data();if(r.invDate&&(r.idTh||r.idLink||(r.gTh||[]).length||(r.gLinks||[]).length))d.ref.update({idTh:"",idLink:"",gTh:[],gLinks:[]}).catch(()=>{})})}catch(e){}}
+function dlFile(name,rows){const t=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n"),a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+t],{type:"text/csv"}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+$("csv").onclick=()=>dlFile("citycube_loaded_records_"+today()+".csv",[HDR,...recs.map(rowOf)]);
+$("csv").insertAdjacentHTML("afterend",'<button class="btn s" id="csvf">⬇ Full history CSV</button><button class="btn s" id="csvi">⬇ Invoices CSV</button>');
+$("csvf").onclick=async()=>{try{const s=await fs.collection("records").get();dlFile("citycube_all_records_"+today()+".csv",[HDR,...s.docs.map(d=>rowOf(d.data()))])}catch(e){toast("Failed: "+e.message)}};
+$("csvi").onclick=async()=>{try{const s=await fs.collection("invoices").get(),K=["no","date","cid","customer","trn","type","from","to","taxable","vat","total"];dlFile("citycube_invoices_"+today()+".csv",[["Invoice no","Date","Customer ID","Customer","Customer TRN","Type","Period from","Period to","Taxable (AED)","VAT (AED)","Total (AED)"],...s.docs.map(d=>K.map(k=>d.data()[k])).sort((a,b)=>String(a[0])>String(b[0])?1:-1)])}catch(e){toast("Failed: "+e.message)}};
+$("sync").style.display="none";
+$("st").onclick=async()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());try{const t=await(await fetch(S.hook)).text();toast(/running/i.test(t)?"Photo script reachable ✔":"Unexpected reply – check URL / Anyone access",6000)}catch(e){toast("Cannot reach the photo script",6000)}};
+async function importOld(){const u=prompt("OLD Google Sheet web-app URL (ends in /exec):");if(!u)return;const k=prompt("OLD access key:");if(k===null)return;
+ try{const j=await(await fetch(u+"?action=list&key="+encodeURIComponent(k))).json();if(!j.ok)throw new Error("denied or old script");let mx=0;
+  for(const a of j.rows){const r={};COLS.forEach((c,i)=>r[c]=a[i]);r.idLink=a[COLS.length+1]||"";r.gLinks=String(a[COLS.length+2]||"").split("\n").filter(Boolean);r.bills=a[COLS.length+3]||"";r.billedTo=a[COLS.length+4]||"";r.moves=a[COLS.length+5]||"";r.ht=a[COLS.length+6]||"";r.outDone=r.invNo?1:0;r.saved=new Date().toISOString();mx=Math.max(mx,parseInt(String(r.invNo||"").replace(/\D/g,""))||0);fs.doc("records/"+r.cid).set(JSON.parse(JSON.stringify(r)))}
+  try{const l=await(await fetch(u+"?action=getlay&key="+encodeURIComponent(k))).json();if(l.ok)fs.doc("layout/main").set({pl:l.rows.map(a=>({c:a[0],z:a[1],f:parseFloat(a[2])||0})).filter(p=>p.c&&p.f>0)})}catch(e){}
+  if(mx){const c=await fs.doc("counters/inv").get();if(!c.exists||c.data().n<mx)fs.doc("counters/inv").set({n:mx})}
+  await fs.waitForPendingWrites();toast("Imported "+j.rows.length+" records (active + recently closed), layout and invoice counter",9000)}catch(e){toast("Import failed: "+e.message,9000)}}
+$("t3").insertAdjacentHTML("afterend",'<button id="so" style="display:none"></button>');
+$("so").onclick=()=>{au&&au.signOut().then(()=>location.reload())};
+document.querySelector("#v3 .bar").insertAdjacentHTML("beforeend",'<button class="btn o" id="imp">Import from old Google Sheet</button>');$("imp").onclick=importOld;
+recs=[];(function(){const c=FBCFG();if(!c||!c.apiKey)setupScreen();else initFB(c)})();
+</script></body></html>
