@@ -53,7 +53,7 @@ table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8
 .sh .ag .agc{column-count:2;column-gap:6mm;text-align:justify}.sh .ag .agc p{margin:0 0 3px;break-inside:avoid-column}.sh .ag .ack{border-top:2px solid #1b3a78;margin-top:4px;padding-top:3px;font-size:7pt}.sh .ag .sgn{display:flex;gap:16px;margin-top:20px}.sh .ag .sgn div{flex:1;border-top:1px solid #000;padding-top:2px;font-size:6.6pt;text-align:center}
 @media print{body{background:#fff!important}body>*:not(#sheet){display:none!important}#sheet{display:block!important}@page{margin:9mm}}
 </style></head><body>
-<header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v21 Firebase</small><small id="sy" style="font-weight:700"></small></div>
+<header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v22 Firebase</small><small id="sy" style="font-weight:700"></small></div>
 <nav><button id="t1" class="on">New Entry</button><button id="t2">Records (<span id="cnt">0</span>)</button><button id="t4">Layout</button><button id="t5" style="display:none">Collections</button><button id="t3">Settings</button><button id="sv" hidden>⬇ Save last print</button></nav></header>
 <main>
 <section id="v1"><form onsubmit="return false">
@@ -130,7 +130,8 @@ table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8
 <label>Bays per side<input type="number" id="s_bays"></label><label>Bay width (m)<input type="number" id="s_bw" step="0.01"></label><label>Bay height (m)<input type="number" id="s_bh" step="0.01"></label><label>Bay depth (m)<input type="number" id="s_bd" step="0.01"></label><label>Mezzanine usable area per side (sqm)<input type="number" id="s_ma" step="0.01"></label><label>Mezzanine clear height (m)<input type="number" id="s_mh" step="0.01"></label><label>Trade licence no. (agreement)<input id="s_lic"></label><label>Courts (jurisdiction)<input id="s_court"></label><label>Liability cap per claim (AED)<input type="number" id="s_cap"></label><label>Late charge % per month<input type="number" id="s_late" step="0.01"></label><label>Grace days before late charge<input type="number" id="s_grace"></label><label>Days before unclaimed goods may be sold<input type="number" id="s_aband"></label><label>Deposit refund within (days)<input type="number" id="s_depd"></label><label>Notice period (days)<input type="number" id="s_noticed"></label><label>ID photo kept after closing (days)<input type="number" id="s_idret"></label><label>Default pallet size (CBM) when packages left blank<input type="number" id="s_pcbm" step="0.01"></label><label class="w2">Access key (must match KEY in the Apps Script – same on every device)<input id="s_key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label class="w2">Bank details (printed on invoice)<textarea id="s_bank" rows="2"></textarea></label>
 <label class="w2">Invoice footer note<input id="s_foot"></label>
 <label class="w2">Google Drive photo-script URL (Apps Script)<input id="s_hook" placeholder="https://script.google.com/macros/s/…/exec"></label>
-</div><div class="bar" style="position:static"><button class="btn" id="ss">Save settings</button><button class="btn o" id="slk">🔒 Lock settings</button><button class="btn s" id="st">Test Google Drive photo script</button></div></fieldset></section>
+</div><div class="bar" style="position:static"><button class="btn" id="ss">Save settings</button><button class="btn o" id="slk">🔒 Lock settings</button><button class="btn s" id="st">Test Google Drive photo script</button></div></fieldset>
+<fieldset><legend>Google Sheet backup</legend><p style="margin:0 0 8px;font-size:13px;color:var(--mut)">Firebase stays the master. A read-only copy of all records, invoices, receipts and daily collections is written to a Google Sheet (it is overwritten each time). Uses the same script URL and key as photos.</p><div class="g"><label>Automatic daily sync<select id="s_syncOn"><option value="">Off</option><option value="yes">On</option></select></label><label>Sync time (every day)<input type="time" id="s_syncAt"></label></div><div class="bar" style="position:static"><button class="btn" id="gnow">☁ Sync now</button><button class="btn o" id="gsave">Save schedule</button></div><p id="gst" style="font-size:13px;margin:8px 0 0">Last sync: –</p><p style="font-size:12px;color:var(--mut);margin:4px 0 0">The scheduled sync runs when the app is open on an admin device at or after that time (if the computer was off, it catches up the next time an admin opens the app). Only one device runs it each day.</p></fieldset></section>
 </main>
 <div id="md"><div id="mdc"></div></div>
 <div id="sheet" class="sh"></div><div class="toast" id="toast"></div>
@@ -144,7 +145,7 @@ const FL={cid:"Customer ID",edate:"Entry date",name:"Name",ctype:"Type",idtype:"
 const COLS=[...F,"flags","charge","balance","status","invNo","invDate","invTotal","oAmt","oDesc","disc"],HDR=[...COLS.map(k=>FL[k]),"Goods photos","ID picture (Drive)","Goods pictures (Drive)","Monthly invoices (data)","Billed through","Partial releases (data)","Max item height (m)"];
 const FLAGS=[["fr","Fragile"],["pe","Perishable"],["hz","Hazardous"],["ins","Insured"]];
 let recs=[],ex={},id64="",gp=[],db=null,dl=null,last=null,S={co:"CityCube Warehousing",trn:"",addr:"",ph:"",em:"",vat:5,pre:"INV-",bank:"",foot:"Goods are stored subject to the terms and conditions mentioned overleaf.",hook:"",bays:7,bw:3,bh:3,bd:6.5,ma:85,mh:1,lic:"",court:"Dubai",cap:10000,late:1,grace:7,aband:30,depd:14,noticed:30,idret:50,pcbm:1.8};
-const today=()=>new Date().toISOString().slice(0,10),n2=x=>(+x||0).toFixed(2);
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")},n2=x=>(+x||0).toFixed(2);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function toast(m,ms){const t=$("toast");t.textContent=m;t.style.display="block";clearTimeout(t.h);t.h=setTimeout(()=>t.style.display="none",ms||3200)}
 function nextId(){const d=new Date(),p=x=>String(x).padStart(2,"0");return"CC-"+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase()}
@@ -1213,7 +1214,7 @@ function autoAll(pl){const R=rcm(),zs=zones(),l=Object.values(R),ot={};l.forEach
  l.sort((a,b)=>(isHaz(b)-isHaz(a))||(ot[own(b)]-ot[own(a)])||(own(a)>own(b)?1:own(a)<own(b)?-1:0)||dem(b,"G")-dem(a,"G"));let miss=0;for(const r of l)if(!allocOne(pl,r,zs,R))miss++;return miss}
 const snap=pl=>{const m={};pl.forEach(p=>(m[p.c]=m[p.c]||[]).push(p.z+":"+p.f.toFixed(3)));Object.keys(m).forEach(k=>m[k]=m[k].sort().join("|"));return m};
 const diff=(a,b)=>[...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>a[k]!=b[k]);
-const splits=pl=>{const m={};pl.forEach(p=>m[p.c]=(m[p.c]||0)+1);return Object.values(m).filter(v=>v>1).length};
+const splits=(pl,R)=>{const m={};pl.forEach(p=>{if(p.f>1e-6&&(!R||R[p.c]))(m[p.c]=m[p.c]||new Set()).add(p.z)});return Object.values(m).filter(s=>s.size>1).length};
 const lcol=c=>{let h=2166136261;for(const ch of String(c))h=Math.imul(h^ch.charCodeAt(0),16777619)>>>0;h=Math.imul(h^(h>>>15),2246822519)>>>0;return`hsl(${(h>>>7)%360} 62% 70%)`};
 function layChanged(cs){layDirty=true;saveLay();cs.forEach(c=>pendLoc.add(c));clearTimeout(locT);locT=setTimeout(flushLoc,1500)}
 async function saveLay(){PL=PL.filter(p=>p.f>1e-6);try{localStorage.setItem("cc_lay",JSON.stringify(PL))}catch(e){}
@@ -1267,8 +1268,8 @@ function renderLay(){const zs=zones(),R=rcm(),pl=prev||PL,occ={};zs.forEach(z=>o
  $("chips").innerHTML=un.map(x=>{const r=x.r,k=Math.max(1,Math.round(x.u*units(r))),hd=`${esc(r.name)} · ${esc(r.qty)} ${esc(r.basis)} · ${k} to place · need ${(dem(r,"G")*x.u).toFixed(1)} CBM${mezOK(r)?" 🔻":""}${isHaz(r)?" ☣":""}`;
   return pv?`<div class="cg"><span>${hd}</span><div class="pw">${Array.from({length:k},()=>`<div class="pt${hc(r)}" draggable="true" data-c="${esc(r.cid)}" data-z="" data-n="1" style="background:${lcol(own(r))}"></div>`).join("")}</div></div>`:`<div class="chip${sel&&sel.c==r.cid?" sl":""}${hc(r)}" draggable="true" data-c="${esc(r.cid)}" data-z="" style="border-left-color:${lcol(own(r))}">${hd}</div>`}).join("")||"<span style=\"color:var(--ok)\">✔ Everyone is placed</span>";
  const used=t=>zs.filter(z=>z.t==t).reduce((s,z)=>s+occ[z.id],0),cap=t=>zs.filter(z=>z.t==t).reduce((s,z)=>s+z.cap,0),pc=t=>cap(t)?Math.round(used(t)/cap(t)*100):0,placedP=Object.values(R).reduce((s,r)=>s+Object.values(CM[r.cid]).reduce((a,b)=>a+b,0),0);
- $("lst").innerHTML=`<div>Ground used<b>${used("G").toFixed(0)} / ${cap("G").toFixed(0)} CBM (${pc("G")}%)</b></div><div>Mezzanine used<b>${used("M").toFixed(0)} / ${cap("M").toFixed(0)} CBM (${pc("M")}%)</b></div><div>Free in total<b>${(cap("G")+cap("M")-used("G")-used("M")).toFixed(0)} CBM</b></div><div>Pallets/packages placed<b>${placedP}</b></div><div>Customers to place<b>${un.length}</b></div><div>Split across bays<b>${splits(pl)}</b></div>`;
- if(prev){const mvd=diff(snap(PL),snap(prev)).length;$("lban").innerHTML=`<div class="calc"><div style="flex:1;font-size:13px">Repack preview: <b>${mvd}</b> customer(s) would move • split customers ${splits(PL)} → ${splits(prev)} • not placed: ${un.length}</div><button class="btn s" id="lap">Apply</button><button class="btn o" id="lds" style="color:#fff">Discard</button></div>`;
+ $("lst").innerHTML=`<div>Ground used<b>${used("G").toFixed(0)} / ${cap("G").toFixed(0)} CBM (${pc("G")}%)</b></div><div>Mezzanine used<b>${used("M").toFixed(0)} / ${cap("M").toFixed(0)} CBM (${pc("M")}%)</b></div><div>Free in total<b>${(cap("G")+cap("M")-used("G")-used("M")).toFixed(0)} CBM</b></div><div>Pallets/packages placed<b>${placedP}</b></div><div>Customers to place<b>${un.length}</b></div><div>Split across bays<b>${splits(pl,R)}</b></div>`;
+ if(prev){const mvd=diff(snap(PL),snap(prev)).length;$("lban").innerHTML=`<div class="calc"><div style="flex:1;font-size:13px">Repack preview: <b>${mvd}</b> customer(s) would move • split customers ${splits(PL,R)} → ${splits(prev,R)} • not placed: ${un.length}</div><button class="btn s" id="lap">Apply</button><button class="btn o" id="lds" style="color:#fff">Discard</button></div>`;
   $("lap").onclick=()=>{pushH();const old=snap(PL);PL=prev;prev=null;layChanged(diff(old,snap(PL)));renderLay()};$("lds").onclick=()=>{prev=null;renderLay()}}else $("lban").innerHTML=""}
 $("la").onclick=()=>{if(prev)return;pushH();const b=snap(PL),pl=PL.map(p=>({...p})),miss=autoAll(pl);PL=pl;layChanged(diff(b,snap(PL)));renderLay();toast(miss?miss+" customer(s) could not be fully placed – not enough space":"Everyone is allocated",6000)};
 $("lr").onclick=()=>{prev=[];autoAll(prev);renderLay()};$("lrl").onclick=async()=>{prev=null;sel=null;await loadLay(true);renderLay()};document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!$("v4").hidden)loadLay()});
@@ -1323,7 +1324,7 @@ $("lg").addEventListener("click",()=>{const t=Date.now();logoTaps=logoTaps.filte
 $("slk").onclick=()=>{sessionStorage.removeItem("cc_pin");adm=false;applyLock();tab(1);toast("Settings locked",2000)};
 function openQ(){const c=new URLSearchParams(location.search).get("cid"),r=c&&recs.find(x=>x.cid==c);if(r){fill(r);tab(1);toast("Opened "+c)}}
 $("lbl").onclick=async()=>{const r=await save();if(r)labels(r)};$("rmd").onclick=reminders;$("mi").onclick=monthly;
-const SK=["co","trn","addr","ph","em","vat","pre","bank","foot","hook","key","bays","bw","bh","bd","ma","mh","lic","court","cap","late","grace","aband","depd","noticed","idret","pcbm"];
+const SK=["co","trn","addr","ph","em","vat","pre","bank","foot","hook","key","bays","bw","bh","bd","ma","mh","lic","court","cap","late","grace","aband","depd","noticed","idret","pcbm","syncOn","syncAt"];
 function sfill(){SK.forEach(k=>$("s_"+k).value=S[k]??"")}
 $("ss").onclick=async()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());try{if(db)await db.doc("settings/main").set(S);else localStorage.setItem("cc_set",JSON.stringify(S));toast("Settings saved");pushSet();applyLock()}catch(e){toast("Could not save settings")}calc()};
 $("st").onclick=()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());push([{cid:"TEST-000",name:"Test row - delete me",status:"Test"}])};
@@ -1384,7 +1385,7 @@ function pushSet(){if(!fs)return;const s={};SHK.forEach(k=>s[k]=S[k]);fs.doc("se
 async function loadRemote(){}
 async function saveLay(){PL=PL.filter(p=>p.f>1e-6);if(!fs)return;layDirty=false;fs.doc("layout/main").set({pl:PL,by:me,at:new Date().toISOString()}).then(()=>lsy(true,"saved & shared "+new Date().toLocaleTimeString())).catch(e=>lsy(false,e.message))}
 async function loadLay(force){if(force)toast("Layout updates live – nothing to reload",2500)}
-function applyLock(){$("t5").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
+function applyLock(){$("t5").style.display=adm?"":"none";if($("gsy"))$("gsy").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
 async function adminVerify(){return adm}
 function adminPrompt(){toast(adm?"You are an admin":"Admin rights are given in the Firebase console (admins list)",4000)}
 async function cleanTh(){const lim=addDays(today(),-(+S.idret||50));try{const s=await fs.collection("records").where("invDate","<",lim).get();s.docs.forEach(d=>{const r=d.data();if(r.invDate&&(r.idTh||r.idLink||(r.gTh||[]).length||(r.gLinks||[]).length))d.ref.update({idTh:"",idLink:"",gTh:[],gLinks:[]}).catch(()=>{})})}catch(e){}}
@@ -1457,5 +1458,35 @@ $("crw").onclick=async e=>{const b=e.target.closest("button");if(!b)return;
 $("cp1").onchange=loadColl;$("cp4").onclick=loadColl;$("cp2").onchange=$("cp3").onchange=()=>{$("cp1").value="custom";loadColl()};
 $("cp5").onclick=()=>{const[a,b]=prange();dlFile("citycube_receipts_"+a+"_to_"+b+".csv",[["Receipt no","Date","Customer ID","Customer","Customer TRN","Towards","Invoice","Mode","Reference","Amount (AED)","Balance after","Received by","Void"],...[...CP].sort((x,y)=>String(x.no)>String(y.no)?1:-1).map(p=>[p.no,p.date,p.cid,p.customer,p.trn,p.type,p.forInv,p.mode,p.ref,p.amount,p.balAfter,p.by,p.void?"VOID: "+(p.voidReason||""):""])])};
 $("t5").onclick=()=>{tab(5);loadColl()};
+
+/* ================= GOOGLE SHEET BACKUP (button + daily schedule) ================= */
+let syncing=false,lastFail=0;
+$("csvi").insertAdjacentHTML("afterend",'<button class="btn s" id="gsy" style="display:none">☁ Sync to Google Sheet</button>');
+const gsend=async b=>{const j=await gs(b);if(!j)throw new Error("script unreachable – check the URL, and that access is Anyone");if(!j.ok)throw new Error(j.error=="denied"?"wrong script key":j.error=="unknown action"?"the Apps Script is the old version – paste the new GoogleDrive_Photos_AppsScript.gs and deploy a New version":j.error);return j};
+function showG(i){const e=$("gst");if(!i){e.textContent="Last sync: –";return}const c=Object.entries(i.counts||{}).map(([k,v])=>v+" "+k.toLowerCase()).join(", ");e.innerHTML="Last sync: <b>"+esc(new Date(i.at).toLocaleString())+"</b>"+(i.auto?" (scheduled)":" (button)")+" by "+esc(String(i.by||"").split("@")[0])+" – "+esc(c)+(i.url?` – <a href="${esc(i.url)}" target="_blank" rel="noopener">Open Google Sheet</a>`:"")}
+const SYS=[
+ ["Records",async()=>{const s=await fs.collection("records").get();return[HDR,s.docs.map(d=>rowOf(d.data())).sort((a,b)=>String(a[0])>String(b[0])?1:-1)]}],
+ ["Invoices",async()=>{const s=await fs.collection("invoices").get(),K=["no","date","cid","customer","trn","type","from","to","taxable","vat","total"];return[["Invoice no","Date","Customer ID","Customer","Customer TRN","Type","Period from","Period to","Taxable (AED)","VAT (AED)","Total (AED)"],s.docs.map(d=>K.map(k=>d.data()[k]??"")).sort((a,b)=>String(a[0])>String(b[0])?1:-1)]}],
+ ["Receipts",async()=>{const s=await fs.collection("payments").get(),P=s.docs.map(d=>d.data()).sort((a,b)=>String(a.no)>String(b.no)?1:-1);SYS.P=P;return[["Receipt no","Date","Customer ID","Customer","Towards","Invoice","Mode","Reference","Amount (AED)","Balance after","Received by","Status"],P.map(p=>[p.no,p.date,p.cid,p.customer,p.type,p.forInv,p.mode,p.ref,p.amount,p.balAfter,p.by,p.void?"VOID: "+(p.voidReason||""):""])]}],
+ ["Daily collections",async()=>{const g={};(SYS.P||[]).filter(p=>!p.void).forEach(p=>{const o=g[p.date]||(g[p.date]={n:0,Cash:0,Card:0,"Bank transfer":0,Cheque:0,dep:0,tot:0});o.n++;if(p.type=="Security deposit")o.dep+=p.amount;else{o[p.mode]=(o[p.mode]||0)+p.amount;o.tot+=p.amount}});
+  return[["Date","Receipts","Cash","Card","Bank transfer","Cheque","Total collected (excl. deposits)","Deposits received"],Object.keys(g).sort().map(k=>{const o=g[k];return[k,o.n,n2(o.Cash),n2(o.Card),n2(o["Bank transfer"]),n2(o.Cheque),n2(o.tot),n2(o.dep)]})]}]];
+async function sheetSync(auto){if(syncing||!fs||!adm)return false;if(!S.hook){toast("Set the Google script URL in Settings first");return false}
+ syncing=true;$("gsy").disabled=$("gnow").disabled=true;$("gst").textContent="Syncing… please wait";
+ try{const cnt={};let url="";
+  for(const[name,get]of SYS){const[head,rows]=await get();cnt[name]=rows.length;$("gst").textContent="Syncing "+name+" ("+rows.length+")…";
+   for(let i=0;i==0||i<rows.length;i+=400){const j=await gsend({action:"sync",sheet:name,head,rows:rows.slice(i,i+400),first:i==0});url=j.url||url}}
+  const j=await gsend({action:"syncdone",by:me,auto:!!auto,counts:cnt});url=j.url||url;
+  const info={at:new Date().toISOString(),by:me,counts:cnt,url,auto:!!auto};if(auto)info.autoDay=today();
+  await fs.doc("counters/sync").set(info,{merge:true});showG(info);toast("Google Sheet updated ✔ ("+cnt.Records+" records, "+cnt.Invoices+" invoices, "+cnt.Receipts+" receipts)",6000);return true
+ }catch(e){$("gst").textContent="⚠ Sync failed: "+e.message;toast("Google Sheet sync failed: "+e.message,9000);lastFail=Date.now();return false}
+ finally{syncing=false;$("gsy").disabled=$("gnow").disabled=false}}
+$("gsy").onclick=()=>sheetSync(false);$("gnow").onclick=()=>sheetSync(false);
+$("gsave").onclick=async()=>{SK.forEach(k=>S[k]=$("s_"+k).value.trim());try{await fs.doc("settings/main").set(S);toast(S.syncOn=="yes"?"Daily sync set for "+(S.syncAt||"?"):"Automatic sync is off")}catch(e){toast("Could not save: "+e.message)}};
+$("t3").addEventListener("click",()=>{if(fs)fs.doc("counters/sync").get().then(d=>d.exists&&showG(d.data())).catch(()=>{})});
+async function syncTick(){if(!adm||!fs||syncing||S.syncOn!="yes"||!/^\d\d:\d\d$/.test(S.syncAt||"")||!S.hook||Date.now()-lastFail<9e5)return;
+ const n=new Date(),hm=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");if(hm<S.syncAt)return;
+ let prev="";try{const ok=await fs.runTransaction(async t=>{const ref=fs.doc("counters/sync"),d=await t.get(ref);prev=d.exists?(d.data().autoDay||""):"";if(prev==today())return false;t.set(ref,{autoDay:today(),claimBy:me},{merge:true});return true});if(!ok)return}catch(e){return}
+ if(!await sheetSync(true))fs.doc("counters/sync").set({autoDay:prev},{merge:true}).catch(()=>{})}
+setInterval(syncTick,60000);setTimeout(syncTick,20000);
 recs=[];if(/[?&]resetsetup/.test(location.search)){try{localStorage.removeItem("cc_fbcfg")}catch(e){}history.replaceState(null,"",location.pathname)}(function(){const c=FBCFG();if(!c||!c.apiKey)setupScreen();else initFB(c)})();
 </script></body></html>
