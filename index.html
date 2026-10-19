@@ -1195,7 +1195,10 @@ const placedF=(pl,c)=>pl.filter(p=>p.c==c).reduce((s,p)=>s+p.f,0);
 function occIn(pl,z,R){R=R||rcm();let s=0;for(const p of pl)if(p.z==z.id&&R[p.c])s+=p.f*dem(R[p.c],z.t);return s}
 function zoneOK(pl,r,z,R){R=R||rcm();if(z.t=="M"&&!mezOK(r))return"Mezzanine needs ‘Max item height’ of "+S.mh+" m or less on the record";
  const o=pl.filter(p=>p.z==z.id&&p.c!=r.cid&&R[p.c]);if(isHaz(r)&&o.length)return"Hazardous goods need a bay of their own";if(o.some(p=>isHaz(R[p.c])))return z.id+" holds hazardous goods – no mixing";return""}
-function allocOne(pl,r,zs,R){const c=r.cid;let rem=1-placedF(pl,c);if(rem<1e-6)return true;
+function allocOne(pl,r,zs,R){
+ if($("lpm").checked&&mezOK(r)&&placedF(pl,r.cid)<1-1e-6){const zm=zs.filter(z=>z.t=="M");if(zm.length){const cp=JSON.parse(JSON.stringify(pl));if(allocCore(cp,r,zm,R)){pl.splice(0,pl.length,...cp);return true}}}
+ return allocCore(pl,r,zs,R)}
+function allocCore(pl,r,zs,R){const c=r.cid;let rem=1-placedF(pl,c);if(rem<1e-6)return true;
  const n=+S.bays||7,days=r.dout&&r.din?Math.max(1,(new Date(r.dout)-new Date(r.din))/864e5):90,tgt=1+Math.round(Math.min(1,Math.max(0,(days-7)/173))*(n-1)),pref=$("lpm").checked&&mezOK(r),occ={};
  zs.forEach(z=>occ[z.id]=occIn(pl,z,R));
  const mine=new Set(pl.filter(p=>R[p.c]&&own(R[p.c])==own(r)).map(p=>p.z)),side=new Set([...mine].map(z=>z.slice(0,3)));
