@@ -53,7 +53,7 @@ table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8
 .sh .ag .agc{column-count:2;column-gap:6mm;text-align:justify}.sh .ag .agc p{margin:0 0 3px;break-inside:avoid-column}.sh .ag .ack{border-top:2px solid #1b3a78;margin-top:4px;padding-top:3px;font-size:7pt}.sh .ag .sgn{display:flex;gap:16px;margin-top:20px}.sh .ag .sgn div{flex:1;border-top:1px solid #000;padding-top:2px;font-size:6.6pt;text-align:center}
 @media print{body{background:#fff!important}body>*:not(#sheet){display:none!important}#sheet{display:block!important}@page{margin:9mm}}
 </style></head><body>
-<header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v22 Firebase</small><small id="sy" style="font-weight:700"></small></div>
+<header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v23 Firebase</small><small id="sy" style="font-weight:700"></small></div>
 <nav><button id="t1" class="on">New Entry</button><button id="t2">Records (<span id="cnt">0</span>)</button><button id="t4">Layout</button><button id="t5" style="display:none">Collections</button><button id="t3">Settings</button><button id="sv" hidden>⬇ Save last print</button></nav></header>
 <main>
 <section id="v1"><form onsubmit="return false">
@@ -1355,7 +1355,9 @@ function loginScreen(msg){ov(`<h3 style="margin:4px 0;color:var(--nv)">Staff sig
  $("lg2").onclick=go;$("lp").onkeydown=e=>{if(e.key=="Enter")go()}}
 async function initFB(c){try{for(const f of["app","auth","firestore"])await loadJs(`https://www.gstatic.com/firebasejs/${FBV}/firebase-${f}-compat.js`)}catch(e){return setupScreen("Could not load Firebase ("+e.message+"). Check the internet connection and reload.")}
  firebase.initializeApp(c);fs=firebase.firestore();fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});au=firebase.auth();
- au.onAuthStateChanged(u=>{if(u)startFB(u);else loginScreen()})}
+ let got=false;const L=firebase.auth.Auth.Persistence;
+ setTimeout(()=>{if(!got)loginScreen("Still connecting… you can sign in below. If this keeps happening, try another browser or a private window.")},3000);
+ au.setPersistence(L.LOCAL).catch(()=>au.setPersistence(L.NONE)).catch(()=>{}).then(()=>{au.onAuthStateChanged(u=>{got=true;if(u)startFB(u);else loginScreen()})})}
 function lst(q,m){q.onSnapshot(s=>{for(const k in m)delete m[k];s.docs.forEach(d=>m[d.id]=d.data());mergeRecs()},e=>sy(false,e.code=="permission-denied"?"permission denied – check the Firestore rules":e.message))}
 function mergeRecs(){recs=Object.values({...mC,...mA}).map(r=>{const p=photoQ[r.cid];return p?{...r,idImg:p.id,gImgs:p.goods}:r}).sort((a,b)=>String(b.saved||"").localeCompare(String(a.saved||"")));render();if(firstLoad){firstLoad=false;openQ()}}
 function startFB(u){me=u.email||"";const o=$("fbov");if(o)o.style.display="none";recs=[];
