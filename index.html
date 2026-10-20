@@ -100,7 +100,7 @@ table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8
 <div class="w2"><label>Handling flags</label><div class="chk"><label><input type="checkbox" id="fr">Fragile</label><label><input type="checkbox" id="pe">Perishable</label><label><input type="checkbox" id="hz">Hazardous</label><label><input type="checkbox" id="ins">Insured by customer</label></div></div>
 <label class="w2">Remarks<textarea id="rem" rows="2"></textarea></label>
 </div></fieldset>
-<div class="bar"><button class="btn" id="save">💾 Save record</button><button class="btn s" id="pdf">🖨 Print intake form + agreement</button><button class="btn s" id="ob">📤 Outbound &amp; Tax Invoice</button><button class="btn s" id="rcv">💵 Receive payment</button><button class="btn s" id="po">📦 Partial outbound</button><button class="btn s" id="lbl">🏷 Pallet labels</button><button class="btn o" id="new">New entry</button></div>
+<div class="bar"><button class="btn" id="save">💾 Save record</button><button class="btn s" id="pdf">🖨 Print intake form + agreement</button><button class="btn s" id="ob">📤 Outbound &amp; Tax Invoice</button><button class="btn s" id="rcv">💵 Receive payment</button><button class="btn s" id="po">📦 Partial outbound</button><button class="btn s" id="lbl">🏷 Pallet labels</button><button class="btn o" id="new">New entry</button><button class="btn o" id="del" style="display:none;color:#b3261e;border-color:#b3261e">🗑 Delete record</button></div>
 </form></section>
 
 <section id="v2" hidden>
@@ -1390,7 +1390,7 @@ function pushSet(){if(!fs)return;const s={};SHK.forEach(k=>s[k]=S[k]);fs.doc("se
 async function loadRemote(){}
 async function saveLay(){PL=PL.filter(p=>p.f>1e-6);if(!fs)return;layDirty=false;fs.doc("layout/main").set({pl:PL,by:me,at:new Date().toISOString()}).then(()=>lsy(true,"saved & shared "+new Date().toLocaleTimeString())).catch(e=>lsy(false,e.message))}
 async function loadLay(force){if(force)toast("Layout updates live – nothing to reload",2500)}
-function applyLock(){$("t5").style.display=adm?"":"none";if($("gsy"))$("gsy").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
+function applyLock(){$("del").style.display=adm?"":"none";$("t5").style.display=adm?"":"none";if($("gsy"))$("gsy").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
 async function adminVerify(){return adm}
 function adminPrompt(){toast(adm?"You are an admin":"Admin rights are given in the Firebase console (admins list)",4000)}
 async function cleanTh(){const lim=addDays(today(),-(+S.idret||50));try{const s=await fs.collection("records").where("invDate","<",lim).get();s.docs.forEach(d=>{const r=d.data();if(r.invDate&&(r.idTh||r.idLink||(r.gTh||[]).length||(r.gLinks||[]).length))d.ref.update({idTh:"",idLink:"",gTh:[],gLinks:[]}).catch(()=>{})})}catch(e){}}
@@ -1492,6 +1492,11 @@ async function syncTick(){if(!adm||!fs||syncing||S.syncOn!="yes"||!/^\d\d:\d\d$/
  const n=new Date(),hm=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");if(hm<S.syncAt)return;
  let prev="";try{const ok=await fs.runTransaction(async t=>{const ref=fs.doc("counters/sync"),d=await t.get(ref);prev=d.exists?(d.data().autoDay||""):"";if(prev==today())return false;t.set(ref,{autoDay:today(),claimBy:me},{merge:true});return true});if(!ok)return}catch(e){return}
  if(!await sheetSync(true))fs.doc("counters/sync").set({autoDay:prev},{merge:true}).catch(()=>{})}
+$("del").onclick=async()=>{const c=$("cid").value,r=recs.find(x=>x.cid==c);if(!adm||!fs)return toast("Only an admin can delete records");if(!r)return toast("Save the record first – nothing to delete");
+ const warn=(r.invNo?"\n\nThis customer already has tax invoice "+r.invNo+". Invoices and receipts are kept in the accounts history and are NOT deleted.":"")+"\n\nThis cannot be undone.";
+ if(!confirm("Delete record "+c+" – "+(r.name||"")+"?"+warn))return;
+ if(prompt("Type DELETE to confirm")!=="DELETE")return toast("Not deleted");
+ try{await fs.doc("records/"+c).delete();PL=PL.filter(p=>p.c!=c);saveLay();fs.collection("activity").add({cid:c,name:r.name||"",status:"Deleted",by:me,at:new Date().toISOString()}).catch(()=>{});toast("Record deleted");$("new").click()}catch(e){toast("Could not delete: "+(e.message||e.code))}};
 setInterval(syncTick,60000);setTimeout(syncTick,20000);
 recs=[];if(/[?&]resetsetup/.test(location.search)){try{localStorage.removeItem("cc_fbcfg")}catch(e){}history.replaceState(null,"",location.pathname)}(function(){const c=FBCFG();if(!c||!c.apiKey)setupScreen();else initFB(c)})();
 </script></body></html>
