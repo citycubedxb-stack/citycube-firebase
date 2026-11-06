@@ -215,7 +215,7 @@ function outbound(r){const d=r.outDone;$("mdc").innerHTML=`<h3 style="margin-top
 <div class=g><label>Actual outbound date<input type=date id="o1" value="${r.dout&&d?r.dout:today()}" ${d?"disabled":""}></label><label>Other charges (handling, forklift…) AED<input type=number id="o2" step=0.01 value="${r.oAmt||""}" ${d?"disabled":""}></label><label class=w2>Other charges description<input id="o3" value="${esc(r.oDesc||"")}" ${d?"disabled":""}></label><label>Discount AED<input type=number id="o4" step=0.01 value="${r.disc||""}" ${d?"disabled":""}></label><label>Payment received now AED<input type=number id="o5" step=0.01 ${d?"disabled":""}></label><label>Mode<select id="o5m" ${d?"disabled":""}><option>Cash</option><option>Card</option><option>Bank transfer</option><option>Cheque</option></select></label><label>Reference / cheque no.<input id="o5r" ${d?"disabled":""}></label></div>
 <div class=bar style="position:static"><button class=btn id="o6">${d?"🖨 Reprint invoice":"✔ Confirm outbound &amp; print invoice"}</button><button class="btn o" id="o7">Cancel</button></div>`;$("md").style.display="flex";
  $("o7").onclick=()=>$("md").style.display="none";
- $("o6").onclick=async()=>{RC=null;let x=r;if(!d){x={...r,dout:$("o1").value||today(),oAmt:$("o2").value,oDesc:$("o3").value,disc:$("o4").value,outDone:1,invDate:today(),invNo:await nextInvR()};x.paid=n2((+r.paid||0)+(+$("o5").value||0));const t=tot(x);x.charge=n2(t.p);x.invTotal=n2(t.t);x.balance=n2(t.t-x.paid);x.status="Closed";if(!await persist(x))return;if(+$("o5").value>0)RC=await logPay(x,+$("o5").value,$("o5m").value,$("o5r").value.trim(),x.invNo,"Invoice payment");{const tt=tot(x),pp=per(x);push([x],false,[invRow(x.invNo,x.invDate,x,pp.from||x.din,x.dout,"Outbound",tt.tx,tt.v,tt.t)])}if($("cid").value==x.cid)fill(x)}
+ $("o6").onclick=async()=>{RC=null;let x=r;if(!d){x={...r,dout:$("o1").value||today(),oAmt:$("o2").value,oDesc:$("o3").value,disc:$("o4").value,outDone:1,invDate:today(),invNo:await nextInvR()};x.paid=n2((+r.paid||0)+(+$("o5").value||0));const t=tot(x);x.charge=n2(t.p);x.invTotal=n2(t.t);x.balance=n2(t.t-x.paid);x.status="Closed";if(!await persist(x))return;if(+$("o5").value>0)RC=await logPay(x,+$("o5").value,$("o5m").value,$("o5r").value.trim(),x.invNo,"Invoice payment");{const tt=tot(x),pp=per(x);push([x],false,[invRow(x.invNo,x.invDate,x,pp.from||x.din,x.dout,"Outbound",tt.tx,tt.v,tt.t,invLines(x,pp.from||x.din,x.dout))])}if($("cid").value==x.cid)fill(x)}
   $("md").style.display="none";printDoc(invDoc(x)+(RC?SEP+rcptDoc(RC,x):""),x.invNo)}}
 const tsv=(sep,qt)=>[HDR,...recs.map(rowOf)].map(a=>a.map(v=>qt?'"'+String(v).replace(/"/g,'""')+'"':String(v).replace(/[\t\n]/g," ")).join(sep)).join("\n");
 $("csv").onclick=async()=>{if(!dl)return toast("Use Copy for Sheets");try{await dl.save({filename:"citycube_records_"+today()+".csv",data:"\ufeff"+tsv(",",true)})}catch(e){toast("Not saved")}};
@@ -233,7 +233,11 @@ function billFor(r,ym){const[y,m]=ym.split("-").map(Number),ms=ym+"-01",me=ym+"-
  const f0=r.din>ms?r.din:ms,from=bt&&addDays(bt,1)>f0?addDays(bt,1):f0;if(from>me)return null;
  const units=r.cycle=="Monthly"?1:Math.round((new Date(me)-new Date(from))/864e5)+1,amt=units*(+r.qty||0)*(+r.rate||0);
  return amt>0?{ym,from,to:me,units,amt}:null}
-const invRow=(no,date,r,from,to,type,tx,v,t)=>[no,date,r.cid,r.name,r.trn||"",type,from,to,n2(tx),n2(v),n2(t)];
+const invRow=(no,date,r,from,to,type,tx,v,t,lines)=>[no,date,r.cid,r.name,r.trn||"",type,from,to,n2(tx),n2(v),n2(t),lines||null];
+/* line items saved with each invoice so the accounts show the same breakdown as the printed invoice */
+const stoDesc=(r,from,to,extra)=>`Storage of goods – ${String(r.desc||"").slice(0,90)} · ${r.qty||""} ${r.basis||""}, ${r.cycle||""} basis${r.loc?", location "+r.loc:""} · period ${from||""} to ${to||""}${extra||""}`;
+function invLines(r,from,to){const t=tot(r),p=per(r),L=[];if(t.p)L.push({k:"storage",desc:stoDesc(r,from||p.from,to||r.dout,` (${p.days} days = ${p.u} ${p.unit}(s))`),qty:+n2((+r.qty||0)*p.u),unit:p.unit,rate:+(+r.rate||0),amt:+n2(t.p)});if(t.o)L.push({k:"other",desc:String(r.oDesc||"Other charges"),qty:1,unit:"lot",rate:+n2(t.o),amt:+n2(t.o)});if(t.d)L.push({k:"discount",desc:"Discount",qty:1,unit:"",rate:-n2(t.d),amt:-n2(t.d)});return L}
+function monthLines(r,b){return[{k:"storage",desc:stoDesc(r,b.from,b.to),qty:+n2((+b.units||0)*(+r.qty||0)),unit:r.cycle=="Monthly"?"month":"day",rate:+(+r.rate||0),amt:+n2(b.amt)}]}
 function monthDoc(r,b){const tx=b.amt,v=tx*(+S.vat||0)/100,t=tx+v,adv=+b.adv||0;
  return head("TAX INVOICE",`<b>Invoice No: ${esc(b.no)}</b><br>Date: ${esc(b.date)}<br>Ref: ${esc(r.cid)}`)+`<table>${row("Bill to",r.name,"Customer TRN",r.trn)}${row("Address",r.addr,"Mobile / Email",(r.mob||"")+" "+(r.email||""))}</table>
 <table><tr><th>#</th><th>Description</th><th>Qty</th><th>Rate (AED)</th><th>Amount (AED)</th></tr><tr><td>1</td><td>Storage of goods – ${esc(r.desc).slice(0,90)}<br>${r.qty} ${r.basis}, ${r.cycle} basis, location ${esc(r.loc)}<br>Period ${b.from} to ${b.to}</td><td class=r>${n2(b.units*(+r.qty||0))}</td><td class=r>${n2(r.rate)}</td><td class=r>${n2(tx)}</td></tr>
@@ -248,7 +252,7 @@ function monthly(){$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv)">
  $("m3").onclick=async()=>{const l=L(),ym=$("m1").value;if(!l.length)return toast("Nothing to invoice");$("m3").disabled=true;const docs=[],inv=[],ups=[];
   for(const{r,b}of l){const no=await nextInvR(),old=bl(r),adv=old.length?0:(+r.paid||0),e={no,date:today(),ym,from:b.from,to:b.to,units:b.units,amt:+n2(b.amt),adv};
    const x={...r,bills:JSON.stringify([...old,e]),billedTo:b.to,paid:adv?"0":r.paid},t=tot(x);x.charge=n2(t.p);x.balance=n2(t.t-(+x.paid||0));x.status=stOf(x);
-   if(!await persist(x))continue;ups.push(x);docs.push(monthDoc(x,e));inv.push(invRow(no,e.date,x,b.from,b.to,"Monthly",b.amt,b.amt*(+S.vat||0)/100,b.amt*(1+(+S.vat||0)/100)))}
+   if(!await persist(x))continue;ups.push(x);docs.push(monthDoc(x,e));inv.push(invRow(no,e.date,x,b.from,b.to,"Monthly",b.amt,b.amt*(+S.vat||0)/100,b.amt*(1+(+S.vat||0)/100),monthLines(x,e)))}
   $("md").style.display="none";if(!ups.length)return;push(ups,true,inv);printDoc(docs.join('<div style="page-break-after:always"></div>'),"Monthly_invoices_"+ym)}}
 function remList(){const t=today(),d7=addDays(t,7),d30=addDays(t,30),L=[],C=S.co;
  recs.forEach(r=>{const nm="Dear "+r.name+", ";
@@ -1171,7 +1175,7 @@ function partial(r){if(r.outDone)return;const q0=+r.qty||0;
   if(rq<=0)return toast("Enter the quantity released");if(rq>q0+1e-9)return toast("More than the quantity in storage ("+q0+")");if(date<r.din)return toast("Release date is before the inbound date");
   if(Math.abs(rq-q0)<1e-9){$("md").style.display="none";toast("That is everything – use full outbound");return outbound(r)}
   $("pc").disabled=true;const rec=+$("p9").value||0,xi={...r,dout:date,oAmt:$("p6").value,oDesc:$("p7").value,disc:$("p8").value,invDate:today(),paid:n2((+r.paid||0)+rec)},t=tot(xi),p=per(xi),docs=[],inv=[],bills=bl(r),mvs=mv(r),bill=t.t>0.004;
-  if(bill){xi.invNo=await nextInvR();docs.push(invDoc(xi));inv.push(invRow(xi.invNo,xi.invDate,xi,p.from||r.din,date,"Partial outbound",t.tx,t.v,t.t));bills.push({no:xi.invNo,date:today(),ym:date.slice(0,7)+"-P",from:p.from,to:date,units:p.u,amt:+n2(t.tx)})}
+  if(bill){xi.invNo=await nextInvR();docs.push(invDoc(xi));inv.push(invRow(xi.invNo,xi.invDate,xi,p.from||r.din,date,"Partial outbound",t.tx,t.v,t.t,invLines(xi,p.from||r.din,date)));bills.push({no:xi.invNo,date:today(),ym:date.slice(0,7)+"-P",from:p.from,to:date,units:p.u,amt:+n2(t.tx)})}
   const m={date,qty:rq,pk:rp,by:$("p4").value.trim(),items:$("p5").value.trim(),inv:xi.invNo||""};mvs.push(m);
   const bd=r.cycle=="Monthly"?30:r.cycle=="Annually"?365:1,end=p.u>0?addDays(p.from,p.u*bd-1):(r.billedTo||""),
    x={...r,qty:n2(q0-rq),pk:r.pk?String(Math.max(0,(+r.pk||0)-rp)):r.pk,paid:n2(Math.max(0,(+xi.paid||0)-(bill?t.t:0))),bills:JSON.stringify(bills),billedTo:end>(r.billedTo||"")?end:(r.billedTo||""),moves:JSON.stringify(mvs),oAmt:"",oDesc:"",disc:""},tx=tot(x);
@@ -1381,7 +1385,7 @@ async function persist(r){if(!fs){toast("Not signed in");return false}r.outDone=
  fs.collection("activity").add({cid:r.cid,name:r.name||"",status:r.status||"",by:me,at:r.saved}).catch(()=>{});
  fs.waitForPendingWrites().then(()=>sy(true,"saved "+new Date().toLocaleTimeString())).catch(()=>{});render();return true}
 async function push(list,noImg,inv){if(!fs)return;
- (inv||[]).forEach(a=>fs.doc("invoices/"+a[0]).set({no:a[0],date:a[1],cid:a[2],customer:a[3],trn:a[4],type:a[5],from:a[6],to:a[7],taxable:+a[8],vat:+a[9],total:+a[10],by:me}).catch(e=>toast("Invoice register: "+e.message,6000)));
+ (inv||[]).forEach(a=>fs.doc("invoices/"+a[0]).set({no:a[0],date:a[1],cid:a[2],customer:a[3],trn:a[4],type:a[5],from:a[6],to:a[7],taxable:+a[8],vat:+a[9],total:+a[10],by:me,...(a[11]?{lines:a[11]}:{})}).catch(e=>toast("Invoice register: "+e.message,6000)));
  for(const r of list){if(r.outDone&&!r.cs){r.cs=1;fs.doc("records/"+r.cid).update({cs:1}).catch(()=>{});gs({action:"closed",cid:r.cid,date:r.invDate||today()})}
   if(!noImg&&(r.idImg||(r.gImgs||[]).length)){photoQ[r.cid]={id:r.idImg||"",goods:r.gImgs||[]};upPhotos(r)}}}
 async function nextInvR(){try{const n=await fs.runTransaction(async t=>{const ref=fs.doc("counters/inv"),d=await t.get(ref),n=(d.exists?d.data().n:0)+1;t.set(ref,{n});return n});return S.pre+String(n).padStart(5,"0")}catch(e){toast("Could not get a shared invoice number (offline?) – used a local one, check for duplicates",8000);return nextInv()}}

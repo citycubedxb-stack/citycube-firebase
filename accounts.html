@@ -1145,7 +1145,7 @@ function render() {
   if (!Store.ready) { $('#view').innerHTML = '<div class="loading"><div><div class="spin"></div>Loading accounts…</div></div>'; return; }
   const sy0 = $('#sync');
   if (MODE === 'login') { $('#top h1').textContent = 'Sign in'; $('#nav').innerHTML = ''; sy0.className = ''; sy0.innerHTML = '<i></i>Firebase'; return renderLogin(); }
-  if (MODE === 'fberr') { $('#top h1').textContent = 'Connection problem'; $('#nav').innerHTML = ''; sy0.className = 'err'; sy0.innerHTML = '<i></i>Firebase error' + (FBUSER ? ` <button class="btn sm" onclick="AU.signOut()">Sign out</button>` : ''); $('#view').innerHTML = `<div class="setup card"><div class="bd"><div class="alert bad"><span class="ic">!</span><div><b>Cannot open the books</b>${esc(Store.err || '')}</div></div>${firestoreRulesHelp()}</div></div>`; return; }
+  if (MODE === 'fberr') { $('#top h1').textContent = 'Connection problem'; $('#nav').innerHTML = ''; sy0.className = 'err'; sy0.innerHTML = '<i></i>Firebase error' + (FBUSER ? ` <button class="btn sm" onclick="AU.signOut()">Sign out</button>` : ''); $('#view').innerHTML = `<div class="setup card"><div class="bd"><div class="alert bad"><span class="ic">!</span><div><b>Cannot open the books</b>${esc(Store.err || '')}</div></div><div id="diag" class="grid" style="gap:6px;margin-top:12px"></div>${firestoreRulesHelp()}</div></div>`; fbDiag(); return; }
   if (!S.meta.company) { $('#top h1').textContent = 'Welcome'; $('#nav').innerHTML = ''; return renderSetup(); }
   WMS.start();
   const r = route(); const V = VIEWS[r.v];
@@ -1177,6 +1177,17 @@ function renderLogin(msg) {
   $('#lgo').onclick = go; $('#lp').onkeydown = e => { if (e.key === 'Enter') go(); };
   $('#lfg').onclick = async () => { const em = $('#le').value.trim(); if (!em) return toast('Enter your email first', 1); try { await AU.sendPasswordResetEmail(em); toast('Password reset email sent'); } catch (e) { toast(e.message, 1); } };
   $('#lrs').onclick = e => { e.preventDefault(); localStorage.removeItem('cc_fbcfg'); location.reload(); };
+}
+async function fbDiag() {
+  const el = $('#diag'); if (!el || !FBUSER || !FS) return; const em = FBUSER.email || '';
+  const chk = async p => { try { const d = await FS.doc(p).get(); return d.exists ? 'yes' : 'no'; } catch (e) { return e.code === 'permission-denied' ? 'cannot read' : 'error'; } };
+  const [ad, ac, bk] = await Promise.all([chk('admins/' + em), chk('accountants/' + em), (async () => { try { await FS.collection('acc').doc('books').collection('meta').limit(1).get(); return 'allowed'; } catch (e) { return e.code === 'permission-denied' ? 'denied' : e.message; } })()]);
+  const line = (ok, t) => `<div style="display:flex;gap:8px;align-items:flex-start"><span class="pill ${ok ? 'good' : 'bad'}" style="flex:none">${ok ? 'ok' : 'fix'}</span><span style="flex:1;min-width:0">${t}</span></div>`;
+  el.innerHTML = `<div class="sect" style="margin-top:0">Diagnosis</div>` +
+    line(true, `Signed in as <b>${esc(em)}</b>`) +
+    line(ad === 'yes' || ac === 'yes', ad === 'yes' ? `<b>admins/${esc(em)}</b> exists — you count as an accountant` : ac === 'yes' ? `<b>accountants/${esc(em)}</b> exists` : `No document named <b>${esc(em)}</b> in <code>admins</code> or <code>accountants</code> (admins: ${ad}, accountants: ${ac}). The document ID must be this exact email, all lowercase.`) +
+    line(bk === 'allowed', bk === 'allowed' ? 'Accounting data is readable — reload the page' : `Reading <code>acc/books</code> is <b>${esc(bk)}</b> — the accounting rules below are not published yet, or were pasted outside <code>match /databases/{database}/documents { … }</code>.`) +
+    `<div class="row" style="margin-top:6px"><button class="btn pri" onclick="location.reload()">Check again</button></div>`;
 }
 function firestoreRulesHelp() {
   return `<div class="sect">Firestore rules for the accounts</div><div class="small muted">In Firebase console → Firestore → Rules, add this block inside <code>match /databases/{database}/documents { … }</code>, then add each accountant's email as a document id in a new <code>accountants</code> collection (admins already have access).</div>
@@ -1634,10 +1645,11 @@ VIEWS.receipts = {
     let rows = list('receipts').filter(r => match('receipts', r.no, custName(r.custId), r.chqNo, r.amount));
     if (tab === 'pdc') rows = rows.filter(r => r.method === 'pdc' && r.status === 'posted');
     rows.sort((a, b) => tab === 'pdc' ? (a.chqDate || '').localeCompare(b.chqDate || '') : (b.date + b.no).localeCompare(a.date + a.no));
-    return `<div class="tabs"><a href="#receipts" class="${tab === 'all' ? 'on' : ''}">All receipts</a><a href="#receipts-pdc" class="${tab === 'pdc' ? 'on' : ''}">PDC register (cheques in hand)</a></div>
+    const dups = []; const seen = new Set(); list('receipts', r => r.src !== 'wms').forEach(r => { const d = dupReceipts(r); if (d.length && !seen.has(r.id)) { seen.add(r.id); dups.push([r, d]); } });
+    return `${dups.length ? `<div class="alert warn" style="margin-bottom:12px"><span class="ic">!</span><div><b>${dups.length} possible duplicate receipt(s)</b>${dups.map(([r, d]) => `${esc(r.no)} (${esc(custName(r.custId))}, AED ${fmt(r.amount)}, ${fdate(r.date)}) matches warehouse receipt ${d.map(x => esc(x.no) + ' · ' + fdate(x.date)).join(', ')}`).join('<br>')}<br><span class="small">If it is the same payment, open the accounts receipt → Edit / re-apply → Void receipt.</span></div></div>` : ''}<div class="tabs"><a href="#receipts" class="${tab === 'all' ? 'on' : ''}">All receipts</a><a href="#receipts-pdc" class="${tab === 'pdc' ? 'on' : ''}">PDC register (cheques in hand)</a></div>
     <div class="toolbar">${searchBox('receipts', 'Search receipt, customer, cheque…')}<span class="grow"></span><button class="btn acc" onclick="receiptForm()">${ico('plus')}Receive payment</button></div>
     <div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>Receipt</th><th>Date</th><th>Customer</th><th>Method</th>${tab === 'pdc' ? '<th>Cheque no.</th><th>Cheque date</th><th>Bank</th>' : '<th>Deposited to</th>'}<th class="n">Amount</th><th class="n">Unapplied</th><th>Status</th>${tab === 'pdc' ? '<th></th>' : ''}</tr></thead><tbody>
-    ${rows.map(r => `<tr class="click" data-r="${r.id}"><td><b>${esc(r.no)}</b></td><td>${fdate(r.date)}</td><td>${esc(custName(r.custId))}</td><td>${esc(r.method.toUpperCase())}</td>${tab === 'pdc' ? `<td>${esc(r.chqNo || '')}</td><td>${fdate(r.chqDate)}${r.pdcStatus === 'pending' && r.chqDate <= T ? ' <span class="pill warn">due</span>' : ''}</td><td>${esc(r.chqBank || '')}</td>` : `<td>${esc(ACC(r.acc).name)}</td>`}<td class="n b">${fmt(r.amount)}</td><td class="n">${fmt(rcptUnalloc(r), '–')}</td><td>${r.status === 'void' ? pill('void') : r.method === 'pdc' ? pill(r.pdcStatus) : pill('posted')}</td>${tab === 'pdc' ? `<td style="white-space:nowrap">${r.pdcStatus === 'pending' ? `<button class="btn sm" data-clr="${r.id}">Deposit / clear</button> <button class="btn sm dng" data-bnc="${r.id}">Returned</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : emptyState('No receipts', 'Record customer payments by bank transfer, cash, cheque or post-dated cheque and apply them to invoices.')}</div>`;
+    ${rows.map(r => `<tr class="click" data-r="${r.id}"><td><b>${esc(r.no)}</b>${r.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}${dupReceipts(r).length ? ' <span class="pill warn" title="Possible duplicate">dup?</span>' : ''}</td><td>${fdate(r.date)}</td><td>${esc(custName(r.custId))}</td><td>${esc(r.method.toUpperCase())}</td>${tab === 'pdc' ? `<td>${esc(r.chqNo || '')}</td><td>${fdate(r.chqDate)}${r.pdcStatus === 'pending' && r.chqDate <= T ? ' <span class="pill warn">due</span>' : ''}</td><td>${esc(r.chqBank || '')}</td>` : `<td>${esc(ACC(r.acc).name)}</td>`}<td class="n b">${fmt(r.amount)}</td><td class="n">${r.status === 'void' ? '–' : fmt(rcptUnalloc(r), '–')}</td><td>${r.status === 'void' ? pill('void') : r.method === 'pdc' ? pill(r.pdcStatus) : pill('posted')}</td>${tab === 'pdc' ? `<td style="white-space:nowrap">${r.pdcStatus === 'pending' ? `<button class="btn sm" data-clr="${r.id}">Deposit / clear</button> <button class="btn sm dng" data-bnc="${r.id}">Returned</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : emptyState('No receipts', 'Record customer payments by bank transfer, cash, cheque or post-dated cheque and apply them to invoices.')}</div>`;
   },
   mount(el) {
     el.addEventListener('click', async e => {
@@ -1680,6 +1692,7 @@ function receiptForm(id, custId, invId) {
         if (r2(r.allocations.reduce((s, a) => s + a.amt, 0)) > r.amount + 0.005) return toast('Applied total exceeds the amount received', 1);
         if (r.method === 'pdc' && !r.chqDate) return toast('Enter the cheque date for a PDC', 1);
         if (!lockOK(r.date)) return;
+        const dd = dupReceipts(r); if (dd.length && !(await confirmDlg('Possible duplicate', `A receipt for AED ${fmt(r.amount)} from this customer is already recorded: ${dd.map(x => esc(x.no) + ' on ' + fdate(x.date) + (x.src === 'wms' ? ' (warehouse system)' : '')).join(', ')}. Save this one anyway?`, 'Save anyway'))) return;
         if (!r.no) r.no = nextNo('receipts', 'RV', r.date);
         await Store.save('receipts', r); toast('Receipt ' + r.no + ' saved'); receiptView(r.id);
       };
@@ -1687,6 +1700,12 @@ function receiptForm(id, custId, invId) {
       draw();
     }
   });
+}
+/* Same customer (or same name), same amount, within 7 days, one from the warehouse system and one entered here */
+function dupReceipts(r) {
+  if (!r || r.status === 'void' || !(r.amount > 0)) return [];
+  const nm = (custName(r.custId) || '').trim().toLowerCase();
+  return list('receipts', x => x.id !== r.id && x.status === 'posted' && (x.src === 'wms') !== (r.src === 'wms') && Math.abs(x.amount - r.amount) < 0.005 && Math.abs(daysBetween(x.date, r.date)) <= 7 && (x.custId === r.custId || (nm && custName(x.custId).trim().toLowerCase() === nm)));
 }
 function receiptView(id) {
   const r = S.receipts[id];
@@ -1807,7 +1826,7 @@ VIEWS.money = {
     const rows = list('money').filter(x => match('money', x.no, x.payee, x.ref, x.memo)).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
     return `<div class="toolbar">${searchBox('money', 'Search payee, voucher…')}<span class="grow"></span><button class="btn" onclick="moneyForm(null,'in')">${ico('in')}Money in</button><button class="btn acc" onclick="moneyForm(null,'out')">${ico('plus')}Expense / money out</button></div>
     <div class="alert" style="margin-bottom:14px"><span class="ic">i</span><div>Use vouchers for direct bank/cash spending not booked as supplier bills (petty cash, DEWA, bank charges, salaries via WPS, VAT and CT payments to FTA, capital introduced, loans).</div></div>
-    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Type</th><th>Payee / payer</th><th>Account(s)</th><th>Bank / cash</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>${rows.map(x => `<tr class="click" onclick="moneyView('${x.id}')"><td><b>${esc(x.no)}</b></td><td>${fdate(x.date)}</td><td>${x.dir === 'in' ? '<span class="pill good">in</span>' : '<span class="pill">out</span>'}</td><td>${esc(x.payee || '')}</td><td class="small">${esc((x.lines || []).map(l => ACC(l.acc).name).join(', '))}</td><td>${esc(ACC(x.acc).name)}</td><td class="n b">${fmt(x.total)}</td><td>${pill(x.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No vouchers yet', 'Record petty cash, utilities, salaries, VAT payments and other bank movements.')}</div>`;
+    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Type</th><th>Payee / payer</th><th>Account(s)</th><th>Bank / cash</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>${rows.map(x => `<tr class="click" onclick="moneyView('${x.id}')"><td><b>${esc(x.no)}</b>${x.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}</td><td>${fdate(x.date)}</td><td>${x.dir === 'in' ? '<span class="pill good">in</span>' : '<span class="pill">out</span>'}</td><td>${esc(x.payee || '')}</td><td class="small">${esc((x.lines || []).map(l => ACC(l.acc).name).join(', '))}</td><td>${esc(ACC(x.acc).name)}</td><td class="n b">${fmt(x.total)}</td><td>${pill(x.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No vouchers yet', 'Record petty cash, utilities, salaries, VAT payments and other bank movements.')}</div>`;
   }
 };
 function moneyForm(id, dir, preset) {
@@ -2283,7 +2302,7 @@ function boot() {
    accounts page can sync without creating duplicates. Nothing is written back to the WMS. */
 const WMS = {
   inv: {}, pay: {}, recCache: {}, unsubs: [], running: false, again: false, t: 0, lastRun: '', status: 'off', issues: [], counts: { inv: 0, rct: 0, dep: 0, upd: 0 },
-  cfg() { const C = company(); return { on: false, from: C.goLive || fyRange(today()).from, revAcc: '4000', depAcc: '2040', modeAcc: { 'Cash': '1000', 'Card': '1020', 'Bank transfer': '1020', 'Cheque': '1020' }, autoApply: true, ...(C.wms || {}) }; },
+  cfg() { const C = company(); return { on: false, from: C.goLive || fyRange(today()).from, revAcc: '4000', otherAcc: '4010', discAcc: '4090', depAcc: '2040', modeAcc: { 'Cash': '1000', 'Card': '1020', 'Bank transfer': '1020', 'Cheque': '1020' }, autoApply: true, ...(C.wms || {}) }; },
   sid: s => 'wms_' + String(s || '').replace(/[^A-Za-z0-9_-]/g, '_'),
   stop() { this.unsubs.forEach(f => f()); this.unsubs = []; this.status = 'off'; this.started = ''; },
   start() {
@@ -2305,6 +2324,34 @@ const WMS = {
     const c = { id, src: 'wms', cid, code: cid, name: r.name || fallback.customer || cid, trn: r.trn || fallback.trn || '', vatReg: !!(r.trn || fallback.trn), address: r.addr || '', phone: r.mob || '', email: r.email || '', emirate: company().emirate, country: 'United Arab Emirates', terms: company().dueDays };
     await Store.save('customers', c); return id;
   },
+  async record(cid, fresh) {
+    if (!cid) return null;
+    if (fresh || this.recCache[cid] === undefined) { try { const d = await FS.doc('records/' + cid).get(); this.recCache[cid] = d.exists ? d.data() : null; } catch (e) { this.recCache[cid] = this.recCache[cid] || null; } }
+    return this.recCache[cid];
+  },
+  /* Invoice lines: use the line items the warehouse system saved; for older invoices rebuild them from the storage record */
+  async lines(w, taxable, vat, c) {
+    let L = Array.isArray(w.lines) && w.lines.length ? w.lines.map(l => ({ k: l.k, desc: l.desc, qty: num(l.qty), unit: l.unit || '', rate: num(l.rate), amt: r2(num(l.amt)) })) : null, src = L ? 'wms' : '';
+    if (!L) {
+      for (const fresh of [false, true]) {
+        const r = await this.record(w.cid, fresh); if (!r) break;
+        const sto = (from, to) => `Storage of goods – ${String(r.desc || '').slice(0, 90)} · ${r.qty || ''} ${r.basis || ''}, ${r.cycle || ''} basis${r.loc ? ', location ' + r.loc : ''} · period ${fdate(from)} to ${fdate(to)}`;
+        let bills = []; try { bills = JSON.parse(r.bills || '[]'); } catch (e) { }
+        const b = bills.find(x => x.no === w.no);
+        if (w.type === 'Monthly' && b) { L = [{ k: 'storage', desc: sto(b.from, b.to), qty: r2(num(b.units) * num(r.qty)), unit: r.cycle === 'Monthly' ? 'month' : 'day', rate: num(r.rate), amt: r2(num(b.amt)) }]; }
+        else if (w.type === 'Outbound' && r.invNo === w.no) {
+          const o = r2(num(r.oAmt)), d = r2(num(r.disc)), st = r2(taxable - o + d);
+          if (st >= -0.005) { L = []; if (st > 0.005) L.push({ k: 'storage', desc: sto(w.from, w.to), qty: 1, unit: 'lot', rate: st, amt: st }); if (o) L.push({ k: 'other', desc: r.oDesc || 'Other charges (handling, forklift…)', qty: 1, unit: 'lot', rate: o, amt: o }); if (d) L.push({ k: 'discount', desc: 'Discount', qty: 1, unit: '', rate: -d, amt: -d }); }
+        }
+        if (!L && w.type !== 'Monthly' || L) { if (!L) L = [{ k: 'storage', desc: sto(w.from, w.to) + ' (' + (w.type || 'invoice') + ')', qty: 1, unit: 'lot', rate: taxable, amt: taxable }]; src = 'record'; break; }
+      }
+    }
+    if (!L || Math.abs(L.reduce((s, l) => s + l.amt, 0) - taxable) > 0.011) { L = [{ k: 'storage', desc: `Storage charges – ${w.type || 'Invoice'}${w.from && w.to ? ' (' + fdate(w.from) + ' – ' + fdate(w.to) + ')' : ''}`, qty: 1, unit: 'lot', rate: taxable, amt: taxable }]; src = 'total'; }
+    const code = vat > 0 ? 'SR' : 'ZR';
+    const out = L.map(l => ({ svc: '', desc: l.desc, qty: l.qty || 1, unit: l.unit, rate: l.k === 'storage' && !l.rate ? l.amt / (l.qty || 1) : l.rate, disc: 0, net: l.amt, vat: code, vatAmt: code === 'SR' ? r2(l.amt * 0.05) : 0, acc: l.k === 'other' ? c.otherAcc : l.k === 'discount' ? c.discAcc : c.revAcc }));
+    const dv = r2(vat - out.reduce((s, l) => s + l.vatAmt, 0)); if (dv && out.length) { const big = out.reduce((a, b) => Math.abs(b.net) > Math.abs(a.net) ? b : a); big.vatAmt = r2(big.vatAmt + dv); }
+    return { lines: out, src };
+  },
   async run() {
     if (this._got !== 3) return; // wait until both listeners delivered
     if (this.running) { this.again = true; return; }
@@ -2316,18 +2363,21 @@ const WMS = {
         if (!w.no || !w.date) continue;
         const id = this.sid(w.no), custId = await this.customer(w.cid, w);
         const taxable = r2(num(w.taxable)), vat = r2(num(w.vat)), total = r2(num(w.total) || taxable + vat);
-        const hash = [w.date, w.cid, taxable, vat, total, w.from, w.to, w.type].join('|');
+        const fin = [w.date, w.cid, taxable, vat, total, w.from, w.to, w.type].join('|');
+        const hash = 'v2|' + fin + '|' + (Array.isArray(w.lines) ? w.lines.length : 'r');
         const ex = S.invoices[id];
         if (ex && ex.wmsHash === hash) continue;
+        if (ex && C.lockDate && ex.date <= C.lockDate && (ex.wmsHash || '').replace(/^v2\|/, '').startsWith(fin)) continue; // detail refresh only – keep locked periods untouched
         if (ex && C.lockDate && ex.date <= C.lockDate) { issues.push(`${w.no} was changed in the warehouse system but is in a locked period — not updated.`); continue; }
         if (!ex && C.lockDate && w.date <= C.lockDate) issues.push(`${w.no} (${fdate(w.date)}) falls in a locked / filed VAT period — imported; report it through the next return or a voluntary disclosure.`);
         if (Math.abs(r2(taxable + vat) - total) > 0.011) issues.push(`${w.no}: taxable + VAT ≠ total in the warehouse record (${fmt(taxable)} + ${fmt(vat)} vs ${fmt(total)}).`);
         const cust = S.customers[custId];
         const per = w.from && w.to ? `${fdate(w.from)} – ${fdate(w.to)}` : '';
+        const LL = await this.lines(w, taxable, vat, c);
         const inv = {
           ...(ex || {}), id, src: 'wms', wmsNo: w.no, wmsHash: hash, wmsBy: w.by || '', no: w.no, status: 'issued', date: w.date, supplyDate: w.to && w.to <= w.date ? w.to : w.date,
           due: addDays(w.date, +(cust.terms || C.dueDays)), custId, currency: 'AED', fx: 1, emirate: C.emirate, period: per, recog: { on: false },
-          lines: [{ svc: '', desc: `Storage charges – ${w.type || 'Invoice'}${per ? ' (' + per + ')' : ''}`, qty: 1, unit: 'Lot', rate: taxable, disc: 0, net: taxable, vat: vat > 0 ? 'SR' : 'ZR', vatAmt: vat, acc: c.revAcc }],
+          lines: LL.lines, linesFrom: LL.src,
           net: taxable, vat, total, disc: 0, netAed: taxable, vatAed: vat, totalAed: r2(taxable + vat),
           custSnap: { name: w.customer || cust.name, trn: w.trn || cust.trn, address: cust.address, emirate: cust.emirate, country: cust.country, phone: cust.phone, email: cust.email },
           notes: 'Issued from the CityCube warehouse system' + (w.cid ? ' · storage ref ' + w.cid : '')
@@ -2357,6 +2407,7 @@ const WMS = {
         const method = p.mode === 'Cash' ? 'cash' : p.mode === 'Card' ? 'card' : p.mode === 'Cheque' ? 'cheque' : 'bank';
         await Store.save('receipts', { ...(ex || {}), id, src: 'wms', wmsHash: hash, no: p.no, status: p.void ? 'void' : 'posted', date: p.date, custId, amount: amt, method, acc, chqNo: p.ref || '', memo: `${p.type || 'Payment'}${p.forInv ? ' · ' + p.forInv : ''}${p.note ? ' · ' + p.note : ''}${p.void ? ' · VOID: ' + (p.voidReason || '') : ''}`, allocations, pdcStatus: 'pending' });
         ex ? this.counts.upd++ : this.counts.rct++;
+        if (!ex && !p.void) { const d = dupReceipts(S.receipts[id]); if (d.length) issues.push(`Warehouse receipt ${p.no} (${p.customer}, AED ${fmt(amt)}) looks like ${d.map(x => x.no).join(', ')} already entered in the accounts — void one of them if it is the same payment.`); }
       }
       // 3. Apply unapplied warehouse receipts (advances) to open invoices, oldest first
       if (c.autoApply) {
@@ -2384,7 +2435,7 @@ function wmsCard() {
   const n = { inv: list('invoices', i => i.src === 'wms').length, rct: list('receipts', r => r.src === 'wms').length, dep: list('money', m => m.src === 'wms').length };
   return `<div class="card" style="grid-column:1/-1"><div class="hd"><h3>Warehouse system link (CityCube Storage Manager)</h3><span class="pill ${st[0]}">${st[1]}</span><span class="grow"></span>${fb ? `<button class="btn sm" onclick="wmsForm()">${c.on ? 'Link settings' : 'Turn on link'}</button>${c.on ? '<button class="btn sm" onclick="WMS.run()">Sync now</button>' : ''}` : ''}</div><div class="bd grid" style="gap:10px">
     ${!fb ? `<div class="alert warn"><span class="ic">!</span><div><b>The live link runs on your Firebase-hosted copy of this app.</b>Upload <code>accounts.html</code> next to the warehouse system's <code>index.html</code> in GitHub and open it from there — it uses the same Firebase project and sign-in, so warehouse invoices and receipts post automatically.</div></div>` : `
-    <div class="kv"><span>Importing from</span><b>${fdate(c.from)}</b><span>Last sync</span><b>${WMS.lastRun ? new Date(WMS.lastRun).toLocaleString('en-GB') : '—'}</b><span>In the books</span><div>${n.inv} invoices · ${n.rct} receipts · ${n.dep} security deposits</div><span>Revenue account</span><div>${esc(accName(c.revAcc))}</div><span>Deposits to</span><div>${esc(accName(c.depAcc))}</div><span>Cash / Card / Bank / Cheque</span><div>${['Cash', 'Card', 'Bank transfer', 'Cheque'].map(k => esc(ACC(c.modeAcc[k]).name)).join(' · ')}</div></div>
+    <div class="kv"><span>Importing from</span><b>${fdate(c.from)}</b><span>Last sync</span><b>${WMS.lastRun ? new Date(WMS.lastRun).toLocaleString('en-GB') : '—'}</b><span>In the books</span><div>${n.inv} invoices · ${n.rct} receipts · ${n.dep} security deposits</div><span>Revenue accounts</span><div>Storage ${esc(c.revAcc)} · Other charges ${esc(c.otherAcc)} · Discounts ${esc(c.discAcc)}</div><span>Deposits to</span><div>${esc(accName(c.depAcc))}</div><span>Cash / Card / Bank / Cheque</span><div>${['Cash', 'Card', 'Bank transfer', 'Cheque'].map(k => esc(ACC(c.modeAcc[k]).name)).join(' · ')}</div></div>
     ${WMS.status === 'error' ? `<div class="alert bad"><span class="ic">!</span><div><b>Link error</b>${esc(WMS.err || '')}</div></div>` : ''}
     ${WMS.issues.length ? `<div class="alert warn"><span class="ic">!</span><div><b>${WMS.issues.length} item(s) to review</b>${WMS.issues.slice(0, 8).map(esc).join('<br>')}${WMS.issues.length > 8 ? '<br>…' : ''}</div></div>` : ''}
     <div class="muted small">Every tax invoice and receipt created in the warehouse system posts here within seconds while this page is open, and catches up automatically the next time it is opened. Invoices keep the warehouse invoice number; security deposits go to a liability, not revenue; voided receipts are reversed.</div>`}</div></div>`;
@@ -2392,10 +2443,10 @@ function wmsCard() {
 async function wmsForm() {
   const c = WMS.cfg();
   const v = await promptDlg('Warehouse system link', `${fChk('Link is on — import automatically', 'on', c.on || true)}${fDate('Import warehouse transactions dated from', 'from', c.from)}<div class="small muted">Use your accounting go-live date. Anything earlier should be in the opening balances, so it is not imported twice.</div>
-    ${fAcc('Revenue account for storage invoices', 'revAcc', c.revAcc, a => a.type === 'income')}${fAcc('Security deposits held', 'depAcc', c.depAcc, a => a.type === 'liability')}
+    ${fAcc('Storage charges →', 'revAcc', c.revAcc, a => a.type === 'income')}${fAcc('Other charges (handling, forklift…) →', 'otherAcc', c.otherAcc, a => a.type === 'income')}${fAcc('Discounts →', 'discAcc', c.discAcc, a => a.type === 'income')}${fAcc('Security deposits held', 'depAcc', c.depAcc, a => a.type === 'liability')}
     ${['Cash', 'Card', 'Bank transfer', 'Cheque'].map(k => fAcc(k + ' receipts go to', 'm_' + k.replace(' ', '_'), c.modeAcc[k], a => a.group === 'cash')).join('')}${fChk('Apply advances to the oldest open invoices automatically', 'autoApply', c.autoApply)}`, 'Save & sync');
   if (!v) return;
-  const w = { on: !!v.on, from: v.from || c.from, revAcc: v.revAcc, depAcc: v.depAcc, autoApply: !!v.autoApply, modeAcc: { 'Cash': v.m_Cash, 'Card': v.m_Card, 'Bank transfer': v.m_Bank_transfer, 'Cheque': v.m_Cheque } };
+  const w = { on: !!v.on, from: v.from || c.from, revAcc: v.revAcc, otherAcc: v.otherAcc, discAcc: v.discAcc, depAcc: v.depAcc, autoApply: !!v.autoApply, modeAcc: { 'Cash': v.m_Cash, 'Card': v.m_Card, 'Bank transfer': v.m_Bank_transfer, 'Cheque': v.m_Cheque } };
   await Store.save('meta', { ...clone(S.meta.company), wms: w }); toast('Link settings saved'); WMS.started = ''; WMS.start();
 }
 
