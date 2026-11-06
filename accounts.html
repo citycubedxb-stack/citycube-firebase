@@ -439,10 +439,10 @@ const Store = {
     const pending = new Set(COLS);
     const timer = setTimeout(() => { if (!this.ready) { this.ready = true; this.warn = 'Firebase is taking longer than usual – showing cached data.'; onChange(); } }, 10000);
     COLS.forEach(col => {
-      this._unsubs.push(FBC(col).onSnapshot(snap => {
+      this._unsubs.push(FBC(col).onSnapshot({ includeMetadataChanges: true }, snap => {
         const o = {}; snap.docs.forEach(d => { o[d.id] = d.data(); }); S[col] = o; VER++;
         if (!snap.metadata.fromCache) pending.delete(col);
-        if (!this.ready && (pending.size === 0)) { this.ready = true; this.warn = ''; clearTimeout(timer); }
+        if (pending.size === 0 && (!this.ready || this.warn)) { const was = this.warn; this.ready = true; this.warn = ''; clearTimeout(timer); if (was) onChange(); }
         if (this.ready) onChange(col);
       }, err => {
         clearTimeout(timer); this.ready = true;
@@ -679,6 +679,10 @@ function billPaid(b, asOf = '9999-12-31') {
 const billBal = (b, asOf) => r2(b.total - billPaid(b, asOf));
 function billStatus(b) { if (b.status !== 'posted') return b.status; if (b.kind === 'credit') return 'credit'; const x = billBal(b); if (x <= 0.004) return 'paid'; if (b.due && b.due < today()) return 'overdue'; return x < b.total ? 'part-paid' : 'open'; }
 const partyBal = (code, party, to = '9999-12-31') => r2(postings().filter(p => p.a === code && p.party === party && p.d <= to).reduce((s, p) => s + p.v, 0));
+function partySplit(code, to = '9999-12-31') {
+  const m = {}; postings().forEach(p => { if (p.a === code && p.d <= to) { const k = p.party || '_'; m[k] = r2((m[k] || 0) + p.v); } });
+  let dr = 0, cr = 0; Object.values(m).forEach(v => { if (v > 0) dr += v; else cr += v; }); return { dr: r2(dr), cr: r2(cr) };
+}
 const BUCKETS = ['Current', '1–30', '31–60', '61–90', '91–180', '180+'];
 function bucketOf(days) { return days <= 0 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : days <= 180 ? 4 : 5; }
 function aging(kind, asOf) {
@@ -1260,7 +1264,7 @@ VIEWS.dashboard = {
     const sum = (b, f) => accounts().filter(f).reduce((s, a) => s + (b[a.code] || 0), 0);
     const rev = b => -sum(b, a => a.group === 'rev'), exp = b => sum(b, a => a.type === 'expense');
     const cash = sum(bAll, a => a.group === 'cash');
-    const ar = bAll['1100'] || 0, ap = -(bAll['2000'] || 0);
+    const arS = partySplit('1100', T), ar = arS.dr, adv = -arS.cr, ap = -(bAll['2000'] || 0);
     const overdue = list('invoices', i => i.status === 'issued' && i.due < T).reduce((s, i) => s + Math.max(0, invBal(i)), 0);
     const per = vatPeriods().find(p => p.from <= T && p.to >= T) || vatPeriods()[0]; const vr = vatReport(per.from, per.to);
     const pdcIn = list('receipts', r => r.status === 'posted' && r.method === 'pdc' && r.pdcStatus === 'pending');
@@ -1272,7 +1276,7 @@ VIEWS.dashboard = {
     const alerts = [];
     if (!C.trn) alerts.push(['bad', 'VAT TRN missing', 'Add your 15-digit TRN in Company & Settings. A tax invoice must show the supplier TRN.']);
     const filed = new Set(list('vatreturns', v => v.status === 'filed').map(v => v.to));
-    vatPeriods().filter(p => p.to < T && !filed.has(p.to)).slice(0, 2).forEach(p => alerts.push([p.due < T ? 'bad' : 'warn', `VAT return ${p.label} ${p.due < T ? 'overdue' : 'due ' + fdate(p.due)}`, 'File on EmaraTax and record it under VAT Return to lock the period. Due 28 days after the period end.']));
+    vatPeriods().filter(p => p.to < T && !filed.has(p.to) && (!C.goLive || p.to >= C.goLive) && !(C.vatSkip || []).includes(p.to)).slice(0, 2).forEach(p => alerts.push([p.due < T ? 'bad' : 'warn', `VAT return ${p.label} ${p.due < T ? 'overdue' : 'due ' + fdate(p.due)}`, 'File on EmaraTax and record it under VAT Return to lock the period. Due 28 days after the period end.']));
     const late = list('invoices', i => i.status === 'issued' && !i.opening && i.supplyDate && daysBetween(i.supplyDate, i.date) > 14).length;
     if (late) alerts.push(['warn', `${late} tax invoice(s) issued more than 14 days after the date of supply`, 'Article 67 of the VAT Law requires a tax invoice within 14 days of the date of supply.']);
     const noTrn = list('customers', c => c.vatReg && !c.trn).length; if (noTrn) alerts.push(['warn', `${noTrn} VAT-registered customer(s) without a TRN`, 'Record the recipient TRN so it prints on the tax invoice.']);
@@ -1287,7 +1291,7 @@ VIEWS.dashboard = {
       <button class="btn acc" onclick="invoiceForm()">${ico('plus')}New invoice</button><button class="btn" onclick="go('billing')">${ico('box')}Billing run</button><button class="btn" onclick="receiptForm()">${ico('in')}Receive payment</button><button class="btn" onclick="billForm()">${ico('bill')}Enter bill</button></div>
     <div class="grid g4">
       <div class="card kpi"><div class="l">Revenue · ${MON[m - 1]}</div><div class="v"><small>AED</small>${fmt(rev(bM))}</div><div class="s">${fy.label} to date AED ${fmt(rev(bY))}</div></div>
-      <div class="card kpi"><div class="l">Receivables</div><div class="v"><small>AED</small>${fmt(ar)}</div><div class="s">${overdue > 0 ? `<span style="color:var(--bad)">AED ${fmt(overdue)} overdue</span>` : 'Nothing overdue'}</div></div>
+      <div class="card kpi"><div class="l">Receivables</div><div class="v"><small>AED</small>${fmt(ar)}</div><div class="s">${overdue > 0 ? `<span style="color:var(--bad)">AED ${fmt(overdue)} overdue</span>` : 'Nothing overdue'}${adv > 0.004 ? ` · advances held AED ${fmt(adv)}` : ''}</div></div>
       <div class="card kpi"><div class="l">Cash & bank</div><div class="v"><small>AED</small>${fmt(cash)}</div><div class="s">PDCs in hand AED ${fmt(pdcIn.reduce((s, r) => s + r.amount, 0))}</div></div>
       <div class="card kpi"><div class="l">VAT ${per.label}</div><div class="v"><small>AED</small>${fmt(vr.b14)}</div><div class="s">${vr.b14 >= 0 ? 'Estimated payable' : 'Estimated refundable'} · due ${fdate(per.due)}</div></div>
     </div>
@@ -2010,7 +2014,7 @@ VIEWS.vat = {
     const row = (bx, l, a, v, adj, cls = '') => `<tr class="${cls}"><td class="bx">${bx}</td><td>${l}</td><td class="n">${a === null ? '' : fmt(a)}</td><td class="n">${v === null ? '' : fmt(v)}</td><td class="n">${adj === null || adj === undefined ? '' : fmt(adj)}</td></tr>`;
     return `<div class="toolbar"><label class="f">Tax period<select class="inp" onchange="UI.vatP=this.value;render()">${pers.map(x => `<option value="${x.to}" ${x.to === p.to ? 'selected' : ''}>${x.label}${list('vatreturns', v => v.to === x.to && v.status === 'filed').length ? ' ✓ filed' : ''}</option>`).join('')}</select></label>
       <div class="kv"><span>Period</span><b>${fdate(p.from)} – ${fdate(p.to)}</b><span>Due date</span><b>${fdate(p.due)}</b><span>TRN</span><b>${esc(C.trn || '— not set')}</b></div><span class="grow"></span>
-      <button class="btn" id="vdet">Export transactions (CSV)</button><button class="btn" id="vpdf">${ico('pdf')}PDF</button>${filed ? `<span class="pill good">Filed ${fdate(filed.filedDate)}</span><button class="btn" id="vpay">Record payment to FTA</button>` : `<button class="btn pri" id="vfile">Mark as filed & lock period</button>`}</div>
+      <button class="btn" id="vdet">Export transactions (CSV)</button><button class="btn" id="vpdf">${ico('pdf')}PDF</button>${filed ? `<span class="pill good">Filed ${fdate(filed.filedDate)}</span><button class="btn" id="vpay">Record payment to FTA</button>` : (C.vatSkip || []).includes(p.to) ? `<span class="pill">Filed outside this system</span>` : `<button class="btn" id="vskip" title="For periods before you started using these books">Filed outside this system</button><button class="btn pri" id="vfile">Mark as filed & lock period</button>`}</div>
     ${filed && (Math.abs(filed.due - R.b12) > .01 || Math.abs(filed.rec - R.b13) > .01) ? `<div class="alert bad" style="margin-bottom:12px"><span class="ic">!</span><div><b>Figures differ from the filed return.</b>Filed due tax ${fmt(filed.due)} / recoverable ${fmt(filed.rec)}. Transactions in this period changed after filing — correct through a voluntary disclosure or the next return per FTA rules.</div></div>` : ''}
     <div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
     <div class="card"><table class="t vat201"><thead><tr><th>Box</th><th>VAT on sales and all other outputs</th><th class="n">Amount (AED)</th><th class="n">VAT (AED)</th><th class="n">Adjustment</th></tr></thead><tbody>
@@ -2045,6 +2049,7 @@ VIEWS.vat = {
       if (v.lock) { const C = clone(S.meta.company); if (!C.lockDate || C.lockDate < p.to) { C.lockDate = p.to; await Store.save('meta', C); } }
       toast('VAT return recorded' + (v.lock ? ' and period locked' : ''));
     };
+    const sk = $('#vskip', el); if (sk) sk.onclick = async () => { if (!(await confirmDlg('Filed outside this system?', `Use this for ${p.label} if it was filed on EmaraTax before you started using these books. No entries are posted and the reminder is removed.`, 'Confirm'))) return; const C = clone(S.meta.company); C.vatSkip = [...(C.vatSkip || []), p.to]; await Store.save('meta', C); toast(p.label + ' marked as filed outside'); };
     const pay = $('#vpay', el); if (pay) pay.onclick = () => { const fr = list('vatreturns', v => v.to === p.to)[0]; const amt = r2(fr.due - fr.rec); moneyForm(null, 'out', { payee: 'Federal Tax Authority', memo: 'VAT payment ' + p.label, date: today() > p.due ? today() : today(), lines: [{ acc: '2110', desc: 'VAT payable ' + p.label, net: Math.max(0, amt), vat: 'OS' }] }); };
   }
 };
@@ -2125,7 +2130,7 @@ VIEWS.reports = {
 };
 function buildReport(rep, F) {
   const C = company(); const accs = accounts(); const { from, to } = F;
-  const sumG = (b, g) => accs.filter(a => a.group === g).reduce((s, a) => s + (b[a.code] || 0), 0);
+  const sumG = (b, g) => g[0] === '_' ? (b[g] || 0) : accs.filter(a => a.group === g).reduce((s, a) => s + (b[a.code] || 0), 0);
   const per = `${fdate(from)} – ${fdate(to)}`;
   if (rep === 'pl') {
     const b = balances(from, to); const rows = []; const line = (g, sign, lbl) => { const L = accs.filter(a => a.group === g && Math.abs(b[a.code] || 0) > .004); rows.push({ c: [lbl], cls: 'hd2' }); L.forEach(a => rows.push({ c: [a.name, fmt(sign * b[a.code])], ind: 1 })); const t = sign * sumG(b, g); rows.push({ c: ['Total ' + lbl.toLowerCase(), fmt(t)], b: 1 }); return t; };
@@ -2145,7 +2150,9 @@ function buildReport(rep, F) {
     const rows = []; const sec = (lbl, gs, sign) => { rows.push({ c: [lbl], cls: 'hd2' }); let t = 0; gs.forEach(g => { const v = sign * sumG(b, g[0]); if (Math.abs(v) > .004 || g[2]) { rows.push({ c: [g[1], fmt(v)], ind: 1 }); } t += v; }); return t; };
     const ppeNet = sumG(b, 'ppe') + sumG(b, 'accdep');
     rows.push({ c: ['Non-current assets'], cls: 'hd2' }); rows.push({ c: ['Property, plant and equipment (net)', fmt(ppeNet)], ind: 1 });
-    const ca = sec('Current assets', [['recv', 'Trade receivables (net of impairment)'], ['curr', 'Prepayments, deposits, VAT and other receivables'], ['cash', 'Cash and cash equivalents']], 1);
+    const arS = partySplit('1100', to), apS = partySplit('2000', to); // credit balances on customers = advances (contract liabilities); debit balances on suppliers = advances paid
+    b['1100'] = r2((b['1100'] || 0) - arS.cr); b['2000'] = r2((b['2000'] || 0) - apS.dr); b['_advc'] = arS.cr; b['_advs'] = apS.dr;
+    const ca = sec('Current assets', [['recv', 'Trade receivables (net of impairment)'], ['curr', 'Prepayments, deposits, VAT and other receivables'], ['_advs', 'Advances paid to suppliers'], ['cash', 'Cash and cash equivalents']], 1);
     const ta = ppeNet + ca; rows.push({ c: ['Total assets', fmt(ta)], cls: 'tot' });
     rows.push({ c: ['Equity'], cls: 'hd2' });
     const eqAcc = accs.filter(a => a.group === 'eq' && a.code !== '3100'); let te = 0;
@@ -2155,6 +2162,7 @@ function buildReport(rep, F) {
     const ncl = sec('Non-current liabilities', [['ncliab', 'Borrowings and end-of-service benefits']], -1);
     rows.splice(rows.length - 1, 1); accs.filter(a => a.group === 'ncliab' && Math.abs(b[a.code] || 0) > .004).forEach(a => rows.push({ c: [a.name, fmt(-(b[a.code]))], ind: 1 }));
     rows.push({ c: ['Current liabilities'], cls: 'hd2' }); let cl = 0; accs.filter(a => a.group === 'cliab' && Math.abs(b[a.code] || 0) > .004).forEach(a => { rows.push({ c: [a.name, fmt(-b[a.code])], ind: 1 }); cl += -b[a.code]; });
+    if (Math.abs(b._advc) > .004) { rows.push({ c: ['Advances received from customers (contract liabilities)', fmt(-b._advc)], ind: 1 }); cl += -b._advc; }
     rows.push({ c: ['Total liabilities', fmt(ncl + cl)], b: 1 }); rows.push({ c: ['Total equity and liabilities', fmt(te + ncl + cl)], cls: 'tot' });
     const diff = r2(ta - te - ncl - cl);
     return { title: 'Statement of financial position', sub: 'As at ' + fdate(to) + ' · AED', cols: [{ h: 'Line item', w: 70 }, { h: 'AED', w: 30, a: 'r' }], rows, file: 'Financial_position_' + to, warn: Math.abs(diff) > .01 ? 'The statement does not balance by AED ' + fmt(diff) + '. Check opening balances.' : '', note: 'Prepared under the IFRS for SMEs Accounting Standard. VAT input and output balances are presented within other receivables / current liabilities.' };
