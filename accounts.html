@@ -379,18 +379,18 @@ const COMPANY_DEFAULT = {
   trn: '', licence: '', ctTrn: '', bankName: '', accName: 'CityCube Warehousing & Storage Management & Operation LLC', iban: '', swift: '',
   fyStart: 1, vatFreq: 'Q', vatFirstEnd: 3, lockDate: '', dueDays: 30, sbrElect: true, sbrExceeded: false,
   invTerms: 'Payment due within the agreed credit period. Goods are stored at owner\'s risk unless insured under a separate agreement. Please quote the invoice number with your payment.',
-  prefix: { INV: 'TI', CN: 'CN', RV: 'RV', PV: 'PV', BILL: 'PB', DN: 'SCN', MV: 'BV', JV: 'JV', TR: 'TR' }
+  prefix: { QT: 'QT', INV: 'TI', CN: 'CN', RV: 'RV', PV: 'PV', BILL: 'PB', DN: 'SCN', MV: 'BV', JV: 'JV', TR: 'TR' }
 };
 
 /* ---------- Store (cloud db with local fallback) ---------- */
-const COLS = ['customers', 'vendors', 'invoices', 'creditnotes', 'receipts', 'bills', 'payments', 'money', 'transfers', 'journals', 'assets', 'employees', 'vatreturns', 'writeoffs', 'meta'];
+const COLS = ['quotes', 'customers', 'vendors', 'invoices', 'creditnotes', 'receipts', 'bills', 'payments', 'money', 'transfers', 'journals', 'assets', 'employees', 'vatreturns', 'writeoffs', 'meta'];
 const S = {}; COLS.forEach(c => S[c] = {});
 let MODE = 'connecting', DBH = null, USER = null, UID = null, CAN_WRITE = true, VER = 0;
 /* Firebase (same project & config as the CityCube warehouse system) */
 const FBV = '10.12.2'; let FS = null, AU = null, FBUSER = null;
 const FBCFG = () => { try { return JSON.parse(localStorage.getItem('cc_fbcfg') || 'null'); } catch (e) { return null; } };
 const loadJs = u => new Promise((ok, no) => { const s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = () => no(new Error('Could not load ' + u)); document.head.appendChild(s); });
-const FBC = col => FS.collection('acc').doc('books').collection(col);
+const FBC = col => col === 'quotes' ? FS.collection('quotes') : FS.collection('acc').doc('books').collection(col); // quotes are shared with the warehouse front desk
 function parseFbCfg(t) { const c = {}; String(t || '').replace(/(\w+)\s*:\s*["']([^"']+)["']/g, (m, k, v) => { c[k] = v; }); return c.apiKey && c.projectId ? c : null; }
 const LKEY = 'citycube_wh_accounts_v1';
 const Store = {
@@ -445,6 +445,7 @@ const Store = {
         if (pending.size === 0 && (!this.ready || this.warn)) { const was = this.warn; this.ready = true; this.warn = ''; clearTimeout(timer); if (was) onChange(); }
         if (this.ready) onChange(col);
       }, err => {
+        if (col === 'quotes') { this.quotesErr = err.code || err.message; pending.delete(col); if (!this.ready && pending.size === 0) { this.ready = true; clearTimeout(timer); onChange(); } return; }
         clearTimeout(timer); this.ready = true;
         if (err.code === 'permission-denied') { MODE = 'fberr'; this.err = 'Permission denied. Ask an admin to add your email to the "accountants" (or "admins") list and publish the accounting Firestore rules.'; }
         else this.warn = 'Firebase: ' + err.message;
@@ -1067,12 +1068,13 @@ const IC = {
   coa: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>', asset: '<path d="M3 17h13l3-6h-5l-2-5H5z"/><circle cx="7" cy="18" r="2"/><circle cx="16" cy="18" r="2"/>',
   emp: '<circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>', vat: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
   ct: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', rep: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>', cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-2.7-1.1l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003 15.4H3a2 2 0 110-4h.1a1.6 1.6 0 001.1-2.7l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 009.6 4.6V3a2 2 0 114 0v.1a1.6 1.6 0 002.7 1.1l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 001.1 2.7H21a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1.3z"/>',
+  quote: '<path d="M7 3h10a2 2 0 012 2v16l-4-2-3 2-3-2-4 2V5a2 2 0 012-2z"/><path d="M9 8h6M9 12h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', pdf: '<path d="M6 2h9l5 5v15H6z"/><path d="M9 15l3 3 3-3M12 10v8"/>', menu: '<path d="M3 6h18M3 12h18M3 18h18"/>', truck: '<path d="M1 4h14v12H1zM15 9h4l3 3v4h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>'
 };
 const ico = k => `<svg viewBox="0 0 24 24">${IC[k] || ''}</svg>`;
 const NAV = [
   ['Overview'], ['dashboard', 'Dashboard', 'dash'],
-  ['Sales'], ['invoices', 'Tax Invoices', 'inv'], ['billing', 'Warehouse Billing Run', 'box'], ['creditnotes', 'Credit Notes', 'cn'], ['receipts', 'Receipts & PDCs', 'in'], ['customers', 'Customers', 'users'],
+  ['Sales'], ['quotes', 'Quotations', 'quote'], ['invoices', 'Tax Invoices', 'inv'], ['billing', 'Warehouse Billing Run', 'box'], ['creditnotes', 'Credit Notes', 'cn'], ['receipts', 'Receipts & PDCs', 'in'], ['customers', 'Customers', 'users'],
   ['Purchases'], ['bills', 'Supplier Bills', 'bill'], ['payments', 'Supplier Payments', 'out'], ['vendors', 'Suppliers', 'truck'],
   ['Banking'], ['banking', 'Bank & Cash', 'bank'], ['money', 'Expenses & Vouchers', 'cash'],
   ['Accounting'], ['journals', 'Journal Entries', 'jv'], ['accounts', 'Chart of Accounts', 'coa'], ['assets', 'Fixed Assets', 'asset'], ['employees', 'Staff & Gratuity', 'emp'],
@@ -1153,7 +1155,7 @@ function render() {
   if (!S.meta.company) { $('#top h1').textContent = 'Welcome'; $('#nav').innerHTML = ''; return renderSetup(); }
   WMS.start();
   const r = route(); const V = VIEWS[r.v];
-  const counts = { invoices: list('invoices', i => i.status === 'draft').length, receipts: list('receipts', x => x.status === 'posted' && x.method === 'pdc' && x.pdcStatus === 'pending' && x.chqDate <= addDays(today(), 7)).length };
+  const counts = { quotes: list('quotes', q => ['draft', 'sent'].includes(qStatus(q)) && q.followUp && q.followUp <= today()).length, invoices: list('invoices', i => i.status === 'draft').length, receipts: list('receipts', x => x.status === 'posted' && x.method === 'pdc' && x.pdcStatus === 'pending' && x.chqDate <= addDays(today(), 7)).length };
   $('#nav').innerHTML = NAV.map(n => n.length === 1 ? `<div class="grp">${n[0]}</div>` : `<a href="#${n[0]}" class="${n[0] === r.v ? 'on' : ''}">${ico(n[2])}<span>${n[1]}</span>${counts[n[0]] ? `<span class="badge">${counts[n[0]]}</span>` : ''}</a>`).join('');
   $('#top h1').textContent = V.title;
   const sy = $('#sync'); sy.className = MODE === 'cloud' ? 'ok' : MODE === 'local' ? 'local' : 'err';
@@ -1202,6 +1204,11 @@ function firestoreRulesHelp() {
 }
 match /acc/{path=**} {
   allow read, write: if isAccountant();
+}
+// quotations – shared with the warehouse front desk
+match /quotes/{id} {
+  allow read, create, update: if request.auth != null;
+  allow delete: if isAccountant();
 }</pre>`;
 }
 async function connectFirebase() {
@@ -1281,6 +1288,9 @@ VIEWS.dashboard = {
     if (late) alerts.push(['warn', `${late} tax invoice(s) issued more than 14 days after the date of supply`, 'Article 67 of the VAT Law requires a tax invoice within 14 days of the date of supply.']);
     const noTrn = list('customers', c => c.vatReg && !c.trn).length; if (noTrn) alerts.push(['warn', `${noTrn} VAT-registered customer(s) without a TRN`, 'Record the recipient TRN so it prints on the tax invoice.']);
     const drafts = list('invoices', i => i.status === 'draft').length; if (drafts) alerts.push(['info', `${drafts} draft invoice(s) awaiting issue`, 'Drafts are not posted to the ledger or VAT until issued.']);
+    const qfu = list('quotes', q => ['draft', 'sent'].includes(qStatus(q)) && q.followUp && q.followUp <= T); if (qfu.length) alerts.push(['info', `${qfu.length} quotation follow-up(s) due`, qfu.slice(0, 3).map(q => q.no + ' · ' + qName(q)).join(', ') + ' — see Quotations.']);
+    const qacc = list('quotes', q => qStatus(q) === 'accepted'); if (qacc.length) alerts.push(['good', `${qacc.length} accepted quotation(s) awaiting move-in`, qacc.slice(0, 3).map(q => qName(q) + ((q.st || {}).start ? ' · ' + fdate(q.st.start) : '')).join(', ')]);
+    if (Store.quotesErr) alerts.push(['warn', 'Quotations need one more Firestore rule', 'Add the "quotes" rule from Company & Settings → Firestore rules, then reload.']);
     const pdcDue = pdcIn.filter(r => r.chqDate <= addDays(T, 7)); if (pdcDue.length) alerts.push(['info', `${pdcDue.length} PDC(s) to deposit within 7 days`, 'AED ' + fmt(pdcDue.reduce((s, r) => s + r.amount, 0)) + ' — see Receipts & PDCs.']);
     const revFY = rev(bY) + -sum(bY, a => a.group === 'oinc');
     if (C.sbrElect && !C.sbrExceeded) alerts.push([revFY > 2700000 ? 'warn' : 'good', `Small Business Relief: revenue ${fy.label} AED ${fmt0(revFY)} of AED 3,000,000`, 'SBR (Ministerial Decision 73 of 2023, extended to tax periods ending on or before 31 Dec 2029) treats taxable income as nil if revenue stays ≤ AED 3m.']);
@@ -1288,7 +1298,7 @@ VIEWS.dashboard = {
     const recent = list('invoices', i => i.status !== 'void').sort((a, b) => (b.date + (b.no || '')).localeCompare(a.date + (a.no || ''))).slice(0, 7);
     return `
     <div class="row" style="margin-bottom:14px"><div class="muted">${fy.label} · as at ${fdate(T)}</div><span class="grow"></span>
-      <button class="btn acc" onclick="invoiceForm()">${ico('plus')}New invoice</button><button class="btn" onclick="go('billing')">${ico('box')}Billing run</button><button class="btn" onclick="receiptForm()">${ico('in')}Receive payment</button><button class="btn" onclick="billForm()">${ico('bill')}Enter bill</button></div>
+      <button class="btn" onclick="quoteForm()">${ico('quote')}New quotation</button><button class="btn acc" onclick="invoiceForm()">${ico('plus')}New invoice</button><button class="btn" onclick="go('billing')">${ico('box')}Billing run</button><button class="btn" onclick="receiptForm()">${ico('in')}Receive payment</button><button class="btn" onclick="billForm()">${ico('bill')}Enter bill</button></div>
     <div class="grid g4">
       <div class="card kpi"><div class="l">Revenue · ${MON[m - 1]}</div><div class="v"><small>AED</small>${fmt(rev(bM))}</div><div class="s">${fy.label} to date AED ${fmt(rev(bY))}</div></div>
       <div class="card kpi"><div class="l">Receivables</div><div class="v"><small>AED</small>${fmt(ar)}</div><div class="s">${overdue > 0 ? `<span style="color:var(--bad)">AED ${fmt(overdue)} overdue</span>` : 'Nothing overdue'}${adv > 0.004 ? ` · advances held AED ${fmt(adv)}` : ''}</div></div>
@@ -2271,7 +2281,7 @@ function companyForm() {
     ${fText('Phone', 'phone', C.phone)}${fText('Email', 'email', C.email)}${fText('Website', 'web', C.web, { cls: 's2' })}${fText('Bank name', 'bankName', C.bankName, { cls: 's2' })}${fText('Account name', 'accName', C.accName, { cls: 's2' })}${fText('IBAN', 'iban', C.iban, { cls: 's2' })}${fText('SWIFT', 'swift', C.swift)}${fNum('Default credit days', 'dueDays', C.dueDays)}
     ${fSel('Financial year starts', 'fyStart', C.fyStart, MON.map((m, i) => [i + 1, m]))}${fSel('VAT frequency', 'vatFreq', C.vatFreq, [['Q', 'Quarterly'], ['M', 'Monthly']])}${fSel('VAT quarters end', 'vatFirstEnd', C.vatFirstEnd, [[1, 'Jan/Apr/Jul/Oct'], [2, 'Feb/May/Aug/Nov'], [3, 'Mar/Jun/Sep/Dec']])}<span></span>
     ${fChk('Elect Small Business Relief', 'sbrElect', C.sbrElect, { cls: 's2' })}${fChk('Revenue exceeded AED 3m in a previous tax period', 'sbrExceeded', C.sbrExceeded, { cls: 's2' })}
-    ${fArea('Invoice terms (printed)', 'invTerms', C.invTerms, { cls: 's4', rows: 3 })}</div><div class="sect">Document number prefixes</div><div class="fg" id="pf">${Object.entries(C.prefix).map(([k, v]) => fText({ INV: 'Tax invoice', CN: 'Credit note', RV: 'Receipt', PV: 'Payment', BILL: 'Purchase bill', DN: 'Supplier credit', MV: 'Voucher', JV: 'Journal', TR: 'Transfer' }[k] || k, k, v)).join('')}</div>`,
+    ${fArea('Invoice terms (printed)', 'invTerms', C.invTerms, { cls: 's4', rows: 3 })}</div><div class="sect">Document number prefixes</div><div class="fg" id="pf">${Object.entries(C.prefix).map(([k, v]) => fText({ QT: 'Quotation', INV: 'Tax invoice', CN: 'Credit note', RV: 'Receipt', PV: 'Payment', BILL: 'Purchase bill', DN: 'Supplier credit', MV: 'Voucher', JV: 'Journal', TR: 'Transfer' }[k] || k, k, v)).join('')}</div>`,
     foot: `<span class="grow"></span><button class="btn" onclick="Modal.close()">Cancel</button><button class="btn pri" id="cs">Save</button>`,
     mount(m) { $('#cs', m).onclick = async () => { const v = vals($('#cf', m)); if (v.trn && !/^\d{15}$/.test(v.trn)) return toast('TRN must be 15 digits', 1); await Store.save('meta', { ...clone(S.meta.company), ...v, fyStart: +v.fyStart, vatFirstEnd: +v.vatFirstEnd, prefix: vals($('#pf', m)) }); Modal.close(); toast('Company profile saved'); }; }
   });
@@ -2456,6 +2466,219 @@ async function wmsForm() {
   if (!v) return;
   const w = { on: !!v.on, from: v.from || c.from, revAcc: v.revAcc, otherAcc: v.otherAcc, discAcc: v.discAcc, depAcc: v.depAcc, autoApply: !!v.autoApply, modeAcc: { 'Cash': v.m_Cash, 'Card': v.m_Card, 'Bank transfer': v.m_Bank_transfer, 'Cheque': v.m_Cheque } };
   await Store.save('meta', { ...clone(S.meta.company), wms: w }); toast('Link settings saved'); WMS.started = ''; WMS.start();
+}
+
+/* ================= Quotations (storage quotes before goods arrive) =================
+   Same pricing model as the warehouse system: basis CBM / SQF × quantity × rate per cycle (Daily / Monthly / Annually),
+   any part period charged as a full period. In Firebase mode quotes live in the top-level "quotes" collection so the
+   warehouse intake form can load an accepted quote and mark it converted. */
+const QSTAT = { draft: ['', 'Draft'], sent: ['info', 'Sent'], accepted: ['good', 'Accepted'], converted: ['good', 'Converted'], declined: ['bad', 'Declined'], expired: ['warn', 'Expired'], superseded: ['', 'Revised'] };
+const VOL_PRESETS = [
+  ['Carton – small (40×30×30 cm)', 0.04], ['Carton – medium (50×40×40 cm)', 0.08], ['Carton – large (60×50×50 cm)', 0.15], ['Standard pallet (120×100×150 cm)', 1.8], ['Euro pallet (120×80×150 cm)', 1.44],
+  ['Single bed + mattress', 1.0], ['Double / king bed + mattress', 1.8], ['Sofa – 3 seater', 1.5], ['Sofa – 2 seater', 1.0], ['Armchair', 0.6], ['Wardrobe – 2 door', 1.5], ['Wardrobe – 3/4 door', 2.2],
+  ['Dining table + 6 chairs', 1.6], ['Refrigerator', 1.0], ['Washing machine', 0.5], ['TV / monitor (boxed)', 0.2], ['Office desk', 0.8], ['Office chair', 0.3], ['Filing cabinet', 0.5], ['Bicycle', 0.6], ['Motorbike', 2.0]
+];
+const QDEF = () => { const C = company(); return { validity: 15, tiers: [{ m: 3, p: 5 }, { m: 6, p: 10 }, { m: 12, p: 15 }], depMonths: 1, rates: {}, terms: 'Rates exclude VAT at 5%. Storage is charged per billing period in advance; any part of a period is charged as a full period. Quantities are estimates and the final charge is based on the volume/area measured at receipt. Hazardous, perishable or illegal goods are not accepted without prior written approval. Goods are stored at owner\'s risk unless insured. The refundable security deposit is returned at final outbound after settlement of all dues. This quotation is not a tax invoice.', ...(C.quote || {}) }; };
+const qStatus = q => (q.status === 'sent' || q.status === 'draft') && q.validUntil && q.validUntil < today() ? 'expired' : q.status;
+function qCalc(q) {
+  const st = q.st || {}, D = QDEF(); const qty = num(st.qty), rate = num(st.rate), months = Math.max(0, num(st.months));
+  const cycles = st.cycle === 'Daily' ? Math.round(months * 30) : st.cycle === 'Annually' ? Math.ceil(months / 12) : Math.ceil(months);
+  const perCycle = r2(qty * rate), storage = r2(perCycle * cycles);
+  const monthly = r2(st.cycle === 'Daily' ? perCycle * 30 : st.cycle === 'Annually' ? perCycle / 12 : perCycle);
+  const tierPct = q.noTier ? 0 : (D.tiers || []).filter(t => months >= num(t.m)).reduce((m, t) => Math.max(m, num(t.p)), 0);
+  const tierDisc = r2(storage * tierPct / 100);
+  const ex = (q.extras || []).map(e => ({ ...e, amt: r2(num(e.qty) * num(e.rate)) }));
+  const extras = r2(ex.reduce((s, e) => s + e.amt, 0)), exIn = r2(ex.filter(e => e.when !== 'out').reduce((s, e) => s + e.amt, 0));
+  const insM = r2(num((q.goods || {}).val) * num(q.insPct) / 100), ins = r2(insM * Math.ceil(months || 0));
+  const disc = r2(num(q.disc));
+  const taxable = r2(Math.max(0, storage - tierDisc - disc + extras + ins)), vat = r2(taxable * 0.05), total = r2(taxable + vat);
+  const firstPeriod = st.cycle === 'Daily' ? 0 : r2(perCycle * (1 - tierPct / 100));
+  const moveInTax = r2(firstPeriod + exIn + insM), moveIn = r2(moveInTax * 1.05 + num(q.dep));
+  return { qty, rate, months, cycles, perCycle, storage, monthly, monthlyNet: r2(monthly * (1 - tierPct / 100)), tierPct, tierDisc, extras, exIn, ins, insM, disc, taxable, vat, total, dep: r2(num(q.dep)), firstPeriod, moveIn, ex, unit: st.cycle === 'Daily' ? 'day' : st.cycle === 'Annually' ? 'year' : 'month' };
+}
+const qName = q => (q.cust || {}).company || (q.cust || {}).name || custName(q.custId) || '—';
+const waNum = m => { let d = String(m || '').replace(/\D/g, ''); if (d.startsWith('00')) d = d.slice(2); if (d.startsWith('0')) d = '971' + d.slice(1); if (d.length === 9 && d.startsWith('5')) d = '971' + d; return d; };
+function qText(q) {
+  const c = qCalc(q), st = q.st || {}, C = company();
+  return `Dear ${(q.cust || {}).name || 'Sir/Madam'},\n\nThank you for your enquiry. Our quotation ${q.no} for storage of ${(q.goods || {}).desc || 'your goods'}:\n\n• Space: ${fmt(c.qty)} ${st.basis} at AED ${fmt(c.rate)} per ${st.basis} per ${c.unit}\n• Storage: about AED ${fmt(c.monthlyNet)} per month + VAT${c.tierPct ? ` (incl. ${c.tierPct}% long-stay discount)` : ''}\n• Estimated total for ${c.months} month(s): AED ${fmt(c.total)} incl. VAT\n${c.dep ? `• Refundable security deposit: AED ${fmt(c.dep)}\n` : ''}• Payable at move-in: AED ${fmt(c.moveIn)}\n\nValid until ${fdate(q.validUntil)}. Full quotation attached.\n\n${C.short}\n${C.phone} · ${C.email}\n${C.address}`;
+}
+function quoteModel(q) {
+  const C = company(), c = qCalc(q), st = q.st || {}, g = q.goods || {}, cu = q.cust || {};
+  const rows = []; let n = 0;
+  rows.push([++n, `Storage space – ${fmt(c.qty)} ${st.basis === 'SQF' ? 'sq.ft' : 'CBM'} at AED ${fmt(c.rate)} per ${st.basis === 'SQF' ? 'sq.ft' : 'CBM'} per ${c.unit}, ${st.cycle.toLowerCase()} billing${st.start ? ' from ' + fdate(st.start) : ''}`, `${c.cycles} ${c.unit}${c.cycles === 1 ? '' : 's'}`, fmt(c.perCycle), fmt(c.storage)]);
+  if (c.tierDisc) rows.push(['', `Long-stay discount ${c.tierPct}% (${c.months}+ months)`, '', '', '(' + fmt(c.tierDisc) + ')']);
+  c.ex.forEach((e, i) => rows.push([++n, `${e.desc}${e.when === 'out' ? ' (at outbound)' : e.when === 'in' ? ' (at inbound)' : ''}`, `${num(e.qty)} ${e.unit || ''}`, fmt(e.rate), fmt(e.amt)]));
+  if (c.ins) rows.push([++n, `Goods insurance ${num(q.insPct)}% of declared value AED ${fmt(g.val)} per month`, `${Math.ceil(c.months)} months`, fmt(c.insM), fmt(c.ins)]);
+  if (c.disc) rows.push(['', 'Special discount', '', '', '(' + fmt(c.disc) + ')']);
+  return {
+    title: 'QUOTATION', subtitle: C.name, subtitle2: 'TRN: ' + (C.trn || '—') + (C.licence ? '   •   Trade licence: ' + C.licence : ''),
+    blocks: [{ label: 'Prepared for', lines: [cu.company || cu.name, cu.company && cu.name ? 'Attn: ' + cu.name : '', cu.addr, [cu.mob, cu.email].filter(Boolean).join(' · '), cu.trn ? 'TRN: ' + cu.trn : ''] },
+    { label: 'Goods', lines: [g.desc, [g.pk ? g.pk + ' packages' : '', g.wt ? g.wt + ' kg' : '', g.val ? 'declared value AED ' + fmt(g.val) : '', g.ht ? 'max height ' + g.ht + ' m' : ''].filter(Boolean).join(' · '), (g.flags || []).length ? 'Handling: ' + g.flags.join(', ') : ''] }],
+    meta: [['Quotation no.', q.no], ['Date', fdate(q.date)], ['Valid until', fdate(q.validUntil)], ['Expected duration', `${c.months} month(s)`], ...(st.start ? [['Expected move-in', fdate(st.start)]] : []), ...(q.by ? [['Prepared by', q.by]] : [])],
+    table: { cols: [{ h: '#', w: 5, a: 'c' }, { h: 'Description', w: 51 }, { h: 'Qty', w: 14, a: 'r' }, { h: 'Rate (AED)', w: 14, a: 'r' }, { h: 'Amount (AED)', w: 16, a: 'r' }], rows },
+    totals: [['Subtotal excluding VAT', 'AED ' + fmt(c.taxable)], ['VAT @ 5%', 'AED ' + fmt(c.vat)], [`Estimated total – ${c.months} month(s)`, 'AED ' + fmt(c.total), 1], ...(c.dep ? [['Refundable security deposit (no VAT)', 'AED ' + fmt(c.dep)]] : [])],
+    tables: undefined,
+    notes: [['At a glance', `Storage about AED ${fmt(c.monthlyNet)} per month + VAT.   Payable at move-in: AED ${fmt(c.moveIn)} (${st.cycle === 'Daily' ? '' : 'first ' + c.unit + ' of storage, '}${c.exIn ? 'inbound charges, ' : ''}VAT${c.dep ? ' and refundable deposit' : ''}).${st.cycle === 'Daily' ? ' Daily storage is billed at outbound.' : ''}`], ['Notes', q.notes], ['Terms & conditions', QDEF().terms]],
+    sign: ['For ' + C.short, 'Accepted by customer – name, signature & date'], foot: 'This quotation is not a tax invoice. Prices are in UAE Dirhams.', docRef: q.no
+  };
+}
+
+/* ---------- List / pipeline ---------- */
+VIEWS.quotes = {
+  title: 'Quotations',
+  render() {
+    const f = UI.filter.q || 'open', T = today();
+    const all = list('quotes', q => q.status !== 'superseded');
+    const rows = all.filter(q => { const s = qStatus(q); return (f === 'all' || (f === 'open' ? ['draft', 'sent', 'accepted'].includes(s) : s === f)) && match('quotes', q.no, qName(q), (q.cust || {}).mob, (q.goods || {}).desc); }).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
+    const open = all.filter(q => ['sent', 'accepted'].includes(qStatus(q))), fu = all.filter(q => ['draft', 'sent'].includes(qStatus(q)) && q.followUp && q.followUp <= T);
+    const d90 = addDays(T, -90), dec = all.filter(q => q.date >= d90 && ['converted', 'accepted', 'declined', 'expired'].includes(qStatus(q))), won = dec.filter(q => ['converted', 'accepted'].includes(qStatus(q)));
+    return `<div class="grid g4" style="margin-bottom:14px">
+      <div class="card kpi"><div class="l">Open quotations</div><div class="v">${open.length}</div><div class="s">AED ${fmt(open.reduce((s, q) => s + qCalc(q).total, 0))} est. value</div></div>
+      <div class="card kpi"><div class="l">Follow-ups due</div><div class="v">${fu.length}</div><div class="s">${fu.length ? esc(fu.slice(0, 2).map(qName).join(', ')) : 'Nothing due today'}</div></div>
+      <div class="card kpi"><div class="l">Win rate · 90 days</div><div class="v">${dec.length ? Math.round(won.length / dec.length * 100) + '%' : '–'}</div><div class="s">${won.length} won of ${dec.length} decided</div></div>
+      <div class="card kpi"><div class="l">Awaiting move-in</div><div class="v">${all.filter(q => qStatus(q) === 'accepted').length}</div><div class="s">Accepted, not yet received in warehouse</div></div></div>
+    <div class="toolbar">${searchBox('quotes', 'Search name, mobile, goods…')}<select class="search" style="min-width:160px" onchange="UI.filter.q=this.value;render()">${opts([['open', 'Open (draft/sent/accepted)'], ['all', 'All'], ['draft', 'Drafts'], ['sent', 'Sent'], ['accepted', 'Accepted'], ['converted', 'Converted'], ['declined', 'Declined'], ['expired', 'Expired']], f)}</select><span class="grow"></span><button class="btn" onclick="quoteSettings()">Quote settings</button><button class="btn acc" onclick="quoteForm()">${ico('plus')}New quotation</button></div>
+    <div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>Quotation</th><th>Date</th><th>Customer</th><th>Space</th><th class="n">Per month</th><th class="n">Est. total</th><th>Valid until</th><th>Follow-up</th><th>Status</th></tr></thead><tbody>
+      ${rows.map(q => { const c = qCalc(q), s = qStatus(q); return `<tr class="click" onclick="quoteView('${q.id}')"><td><b>${esc(q.no)}</b></td><td>${fdate(q.date)}</td><td>${esc(qName(q))}<div class="muted small">${esc((q.cust || {}).mob || '')}</div></td><td>${fmt(c.qty)} ${esc((q.st || {}).basis || '')} · ${c.months} m</td><td class="n">${fmt(c.monthlyNet)}</td><td class="n b">${fmt(c.total)}</td><td>${fdate(q.validUntil)}</td><td>${q.followUp && ['draft', 'sent'].includes(s) ? (q.followUp <= T ? `<span class="pill warn">${fdate(q.followUp)}</span>` : fdate(q.followUp)) : ''}</td><td><span class="pill ${QSTAT[s][0]}">${QSTAT[s][1]}</span>${q.cid ? `<div class="muted small">${esc(q.cid)}</div>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : emptyState('No quotations here', 'Quote customers before they bring goods: estimate the volume, apply long-stay discounts and send a PDF or WhatsApp in a minute.', `<button class="btn acc" onclick="quoteForm()">${ico('plus')}New quotation</button>`)}</div>
+    ${MODE === 'firebase' ? '<div class="muted small" style="margin-top:10px">Accepted quotations appear in the warehouse system under <b>📋 From quotation</b> on the intake form. Saving the intake record marks the quote <b>Converted</b> here automatically.</div>' : ''}`;
+  }
+};
+
+/* ---------- Builder ---------- */
+function quoteForm(id, preset) {
+  const C = company(), D = QDEF(), T = today();
+  const q = id ? clone(S.quotes[id]) : preset || { status: 'draft', date: T, validUntil: addDays(T, num(D.validity) || 15), followUp: addDays(T, 3), cust: { ctype: 'Individual' }, goods: { flags: [] }, st: { basis: 'CBM', cycle: 'Monthly', months: 3, start: addDays(T, 7), rate: (D.rates['CBM|Monthly'] ?? '') }, extras: [], est: [], insPct: '', dep: '', by: (FBUSER && FBUSER.email) || '' };
+  const locked = id && !['draft', 'sent'].includes(q.status);
+  const flags = ['Fragile', 'Perishable', 'Hazardous', 'High value'];
+  Modal.open({
+    title: id ? 'Edit quotation ' + esc(q.no) : 'New quotation', body: `${locked ? '<div class="alert warn" style="margin-bottom:10px"><span class="ic">!</span><div>This quotation is ' + esc(q.status) + '. Use <b>Revise</b> to change the offer.</div></div>' : ''}
+    <div class="sect" style="margin-top:0">Customer</div><div class="fg" id="qc">
+      <label class="f s2">Existing customer (optional)<select data-k="custId"><option value="">— new enquiry —</option>${custOpts(q.custId)}</select></label>${fSel('Type', 'cust.ctype', q.cust.ctype, ['Individual', 'Company'])}${fText('Mobile / WhatsApp', 'cust.mob', q.cust.mob, { a: { placeholder: '05X XXX XXXX' } })}
+      ${fText('Contact name', 'cust.name', q.cust.name)}${fText('Company (if any)', 'cust.company', q.cust.company)}${fText('Email', 'cust.email', q.cust.email)}${fText('TRN (if VAT registered)', 'cust.trn', q.cust.trn, { a: { maxlength: 15 } })}
+      ${fText('Address', 'cust.addr', q.cust.addr, { cls: 's2' })}${fSel('Enquiry source', 'source', q.source, ['', 'Walk-in', 'Phone', 'WhatsApp', 'Website', 'Google', 'Referral', 'Repeat customer', 'Other'])}${fText('Prepared by', 'by', q.by)}</div>
+    <div class="sect">Goods</div><div class="fg" id="qg">${fArea('Goods description', 'goods.desc', q.goods.desc, { cls: 's2' })}${fNum('Packages / pallets', 'goods.pk', q.goods.pk)}${fNum('Weight (kg)', 'goods.wt', q.goods.wt)}
+      ${fNum('Declared value (AED)', 'goods.val', q.goods.val)}${fNum('Max item height (m)', 'goods.ht', q.goods.ht)}<div class="s2 row" style="gap:14px;align-self:end">${flags.map(f => `<label class="f chk"><input type="checkbox" data-flag="${f}" ${(q.goods.flags || []).includes(f) ? 'checked' : ''}> ${f}</label>`).join('')}</div></div>
+    <div class="sect">Space & price <button class="btn sm" id="qvol" style="margin-left:8px">📦 Volume estimator</button></div><div class="fg" id="qs">
+      ${fSel('Storage basis', 'st.basis', q.st.basis, [['CBM', 'CBM (cubic metre)'], ['SQF', 'SQF (square feet)']])}${fNum('Quantity', 'st.qty', q.st.qty)}${fSel('Billing cycle', 'st.cycle', q.st.cycle, ['Daily', 'Monthly', 'Annually'])}${fNum('Rate per unit per cycle (AED)', 'st.rate', q.st.rate)}
+      ${fNum('Expected duration (months)', 'st.months', q.st.months)}${fDate('Expected move-in', 'st.start', q.st.start)}${fNum('Security deposit (AED)', 'dep', q.dep)}${fNum('Insurance % of value / month', 'insPct', q.insPct, { a: { placeholder: 'optional' } })}
+      ${fNum('Special discount (AED)', 'disc', q.disc)}${fChk('No long-stay discount', 'noTier', q.noTier)}${fDate('Valid until', 'validUntil', q.validUntil)}${fDate('Follow up on', 'followUp', q.followUp)}</div>
+    <div class="sect">Handling & other charges</div><div id="qx"><table class="li"><thead><tr><th>Service</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>When</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" id="qxadd" style="margin-top:6px">${ico('plus')}Add charge</button></div>
+    <div class="row" style="align-items:flex-start;margin-top:14px"><div class="grow">${fArea('Notes printed on quotation', 'notes', q.notes, { rows: 3 })}</div><div class="totals" id="qtot" style="min-width:330px"></div></div>`,
+    foot: `${id && q.status === 'draft' ? '<button class="btn dng" id="qdel">Delete</button>' : ''}<span class="grow"></span><button class="btn" id="qpv">Preview</button>${locked ? '' : '<button class="btn pri" id="qsave">Save quotation</button>'}`,
+    mount(m) {
+      if (locked) $$('input,select,textarea', m).forEach(e => e.disabled = true);
+      const sync = () => { const v = vals(m); Object.assign(q, { custId: v.custId, source: v.source, by: v.by, notes: v.notes, dep: v.dep, insPct: v.insPct, disc: v.disc, noTier: v.noTier, validUntil: v.validUntil, followUp: v.followUp }); q.cust = v.cust; q.goods = { ...v.goods, flags: $$('[data-flag]', m).filter(x => x.checked).map(x => x.dataset.flag) }; q.st = v.st; };
+      const exRows = () => { $('#qx tbody', m).innerHTML = q.extras.map((e, i) => `<tr data-i="${i}"><td style="width:110px"><select data-f="svc"><option value="">—</option>${services().map(s => `<option ${s.code === e.svc ? 'selected' : ''}>${esc(s.code)}</option>`).join('')}</select></td><td><input data-f="desc" value="${esc(e.desc || '')}"></td><td style="width:70px"><input class="n" type="number" step="any" data-f="qty" value="${e.qty ?? ''}"></td><td style="width:80px"><input data-f="unit" value="${esc(e.unit || '')}"></td><td style="width:80px"><input class="n" type="number" step="any" data-f="rate" value="${e.rate ?? ''}"></td><td style="width:100px"><select data-f="when">${opts([['in', 'Inbound'], ['out', 'Outbound'], ['any', 'As used']], e.when || 'in')}</select></td><td class="out" style="width:80px">${fmt(num(e.qty) * num(e.rate))}</td><td style="width:30px"><button class="btn ghost sm" data-del="${i}">✕</button></td></tr>`).join(''); };
+      const totals = () => {
+        sync(); const c = qCalc(q);
+        $('#qtot', m).innerHTML = `<div><span>Storage ${c.cycles} ${c.unit}(s) × ${fmt(c.perCycle)}</span><b>${fmt(c.storage)}</b></div>${c.tierDisc ? `<div><span>Long-stay discount ${c.tierPct}%</span><b>(${fmt(c.tierDisc)})</b></div>` : ''}${c.extras ? `<div><span>Handling & other</span><b>${fmt(c.extras)}</b></div>` : ''}${c.ins ? `<div><span>Insurance</span><b>${fmt(c.ins)}</b></div>` : ''}${c.disc ? `<div><span>Special discount</span><b>(${fmt(c.disc)})</b></div>` : ''}<div><span>VAT 5%</span><b>${fmt(c.vat)}</b></div><div class="g"><span>Est. total</span><span>AED ${fmt(c.total)}</span></div>
+          <div style="margin-top:8px"><span>≈ per month (net, ex VAT)</span><b>${fmt(c.monthlyNet)}</b></div>${c.dep ? `<div><span>Refundable deposit</span><b>${fmt(c.dep)}</b></div>` : ''}<div><span><b>Payable at move-in</b></span><b>AED ${fmt(c.moveIn)}</b></div>`;
+      };
+      exRows(); totals();
+      m.addEventListener('input', e => { const tr = e.target.closest('#qx tr[data-i]'); if (tr && e.target.dataset.f) { const x = q.extras[+tr.dataset.i]; x[e.target.dataset.f] = ['qty', 'rate'].includes(e.target.dataset.f) ? num(e.target.value) : e.target.value; tr.querySelector('.out').textContent = fmt(num(x.qty) * num(x.rate)); } totals(); });
+      m.addEventListener('change', e => {
+        const tr = e.target.closest('#qx tr[data-i]');
+        if (tr && e.target.dataset.f === 'svc') { const s = services().find(x => x.code === e.target.value); const x = q.extras[+tr.dataset.i]; if (s) Object.assign(x, { svc: s.code, desc: s.name, unit: s.unit, rate: s.rate, qty: x.qty || 1, when: /out/i.test(s.code + s.name) ? 'out' : 'in' }); exRows(); }
+        const k = e.target.dataset.k;
+        if (k === 'custId' && e.target.value) { const c = S.customers[e.target.value]; if (c) { const set = (kk, v) => { const el = $(`[data-k="${kk}"]`, m); if (el && v) el.value = v; }; set('cust.name', c.contact || c.name); set('cust.company', /llc|fz|trading|company|est/i.test(c.name) ? c.name : ''); set('cust.mob', c.phone); set('cust.email', c.email); set('cust.trn', c.trn); set('cust.addr', c.address); set('source', 'Repeat customer'); } }
+        if (k === 'st.basis' || k === 'st.cycle') { sync(); const r = QDEF().rates[q.st.basis + '|' + q.st.cycle]; if (r !== undefined) $('[data-k="st.rate"]', m).value = r; }
+        if (k === 'st.qty' || k === 'st.cycle' || k === 'st.rate' || k === 'st.basis') { sync(); const dm = num(QDEF().depMonths); const dEl = $('[data-k=dep]', m); if (dm && !num(dEl.value) && !id) dEl.value = Math.ceil(qCalc(q).monthly * dm / 50) * 50 || ''; }
+        totals();
+      });
+      m.addEventListener('click', e => { const d = e.target.closest('#qx [data-del]'); if (d) { q.extras.splice(+d.dataset.del, 1); exRows(); totals(); } });
+      $('#qxadd', m).onclick = () => { q.extras.push({ qty: 1, when: 'in' }); exRows(); };
+      $('#qvol', m).onclick = () => volumeEstimator(q, m, totals);
+      $('#qpv', m).onclick = () => { totals(); const back = clone(q); Modal.open({ title: 'Preview ' + esc(q.no || ''), body: previewDoc(quoteModel({ ...q, no: q.no || 'QT-DRAFT' })), foot: `<span class="grow"></span><button class="btn" id="bk">Back to editing</button>`, mount(mm) { $('#bk', mm).onclick = () => quoteForm(id, back); } }); };
+      if ($('#qsave', m)) $('#qsave', m).onclick = async () => {
+        totals();
+        if (!q.cust.name && !q.cust.company) return toast('Enter the customer name', 1);
+        if (!q.cust.mob && !q.cust.email) return toast('Enter a mobile number or email so you can send it', 1);
+        if (!(num(q.st.qty) > 0) || !(num(q.st.rate) > 0)) return toast('Enter the quantity and rate', 1);
+        if (!q.no) { q.no = nextNo('quotes', 'QT', q.date); q.id = q.no.replace(/[^A-Za-z0-9_-]/g, '_'); q.log = [{ at: new Date().toISOString(), by: UID || '', ev: 'Created' }]; }
+        q.calc = qCalc(q); const rates = { ...(QDEF().rates || {}) }; rates[q.st.basis + '|' + q.st.cycle] = num(q.st.rate);
+        await Store.save('quotes', q);
+        if (S.meta.company) { const Cm = clone(S.meta.company); Cm.quote = { ...(Cm.quote || {}), rates }; Store.save('meta', Cm); }
+        toast('Quotation ' + q.no + ' saved'); quoteView(q.id);
+      };
+      if ($('#qdel', m)) $('#qdel', m).onclick = async () => { if (await confirmDlg('Delete draft quotation?', esc(q.no), 'Delete', 1)) { await Store.remove('quotes', q.id); Modal.close(); } };
+    }
+  });
+}
+function volumeEstimator(q, parent, after) {
+  const L = clone(q.est || []); const isS = (q.st || {}).basis === 'SQF';
+  const el = $('#dlg');
+  const draw = () => {
+    const tot = r2(L.reduce((s, x) => s + num(x.qty) * num(x.cbm), 0)), allow = r2(tot * 0.15);
+    el.innerHTML = `<div class="bx" style="width:min(720px,94vw);max-height:90vh;overflow:auto"><h3>${isS ? 'Area' : 'Volume'} estimator</h3>
+    <div class="muted small" style="margin-bottom:8px">${isS ? 'Add floor areas in feet (length × width); racking or stacking above floor level is not counted.' : 'Pick common items or enter carton / pallet sizes in cm. A 15% stacking allowance covers gaps between irregular items.'}</div>
+    <div class="row" style="margin-bottom:8px">${isS ? '' : `<select class="inp" id="vp" style="max-width:300px"><option value="">+ Add a common item…</option>${VOL_PRESETS.map((p, i) => `<option value="${i}">${esc(p[0])} · ${p[1]} CBM</option>`).join('')}</select>`}<button class="btn sm" id="vc">+ Custom ${isS ? 'area' : 'size'}</button></div>
+    <table class="li"><thead><tr><th>Item</th><th>Qty</th><th>${isS ? 'Length ft' : 'L cm'}</th><th>${isS ? 'Width ft' : 'W cm'}</th>${isS ? '' : '<th>H cm</th>'}<th style="text-align:right">${isS ? 'SQF each' : 'CBM each'}</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>
+    ${L.map((x, i) => `<tr data-i="${i}"><td><input data-v="item" value="${esc(x.item)}"></td><td style="width:60px"><input class="n" type="number" data-v="qty" value="${x.qty}"></td><td style="width:70px"><input class="n" type="number" data-v="l" value="${x.l ?? ''}"></td><td style="width:70px"><input class="n" type="number" data-v="w" value="${x.w ?? ''}"></td>${isS ? '' : `<td style="width:70px"><input class="n" type="number" data-v="h" value="${x.h ?? ''}"></td>`}<td style="width:80px"><input class="n" type="number" step="any" data-v="cbm" value="${x.cbm}"></td><td class="out" style="width:70px">${fmt(num(x.qty) * num(x.cbm))}</td><td><button class="btn ghost sm" data-vd="${i}">✕</button></td></tr>`).join('')}</tbody></table>
+    <div class="totals" style="margin:10px 0 0 auto"><div><span>Measured</span><b>${fmt(tot)} ${isS ? 'SQF' : 'CBM'}</b></div>${isS ? '' : `<div><span>+15% stacking allowance</span><b>${fmt(allow)}</b></div>`}<div class="g"><span>Quote quantity</span><span>${fmt(isS ? tot : Math.ceil((tot + allow) * 10) / 10)}</span></div></div>
+    <div class="row end" style="margin-top:14px"><button class="btn" data-n>Cancel</button><button class="btn pri" id="vok">Use this quantity</button></div></div>`;
+    el.classList.add('on');
+    if ($('#vp', el)) $('#vp', el).onchange = e => { const p = VOL_PRESETS[+e.target.value]; if (p) { L.push({ item: p[0], qty: 1, cbm: p[1] }); draw(); } };
+    $('#vc', el).onclick = () => { L.push({ item: isS ? 'Floor area' : 'Carton', qty: 1, cbm: 0 }); draw(); };
+    $('[data-n]', el).onclick = () => el.classList.remove('on');
+    $$('[data-vd]', el).forEach(b => b.onclick = () => { L.splice(+b.dataset.vd, 1); draw(); });
+    $$('tr[data-i] input', el).forEach(inp => inp.onchange = () => { const x = L[+inp.closest('tr').dataset.i], k = inp.dataset.v; x[k] = k === 'item' ? inp.value : num(inp.value); if (['l', 'w', 'h'].includes(k)) x.cbm = isS ? r2(num(x.l) * num(x.w)) : Math.round(num(x.l) * num(x.w) * num(x.h) / 1e6 * 1000) / 1000; draw(); });
+    $('#vok', el).onclick = () => {
+      q.est = L; const qq = isS ? tot : Math.ceil((tot + allow) * 10) / 10; $('[data-k="st.qty"]', parent).value = qq;
+      const d = $('[data-k="goods.desc"]', parent); if (!d.value.trim()) d.value = L.map(x => `${x.qty} × ${x.item}`).join(', ');
+      const pk = $('[data-k="goods.pk"]', parent); if (!pk.value) pk.value = L.reduce((s, x) => s + num(x.qty), 0);
+      el.classList.remove('on'); $('[data-k="st.qty"]', parent).dispatchEvent(new Event('change', { bubbles: true })); after();
+    };
+  };
+  draw();
+}
+
+/* ---------- View & actions ---------- */
+function quoteView(id) {
+  const q = S.quotes[id]; if (!q) return; const s = qStatus(q), c = qCalc(q), cu = q.cust || {};
+  const wa = waNum(cu.mob), txt = qText(q);
+  const revs = list('quotes', x => x.baseNo === (q.baseNo || q.no) || x.no === (q.baseNo || q.no)).sort((a, b) => (a.rev || 0) - (b.rev || 0));
+  Modal.open({
+    title: `Quotation ${esc(q.no)} <span class="pill ${QSTAT[s][0]}">${QSTAT[s][1]}</span>`, body: `
+    <div class="grid g4" style="margin-bottom:12px"><div class="card kpi"><div class="l">Per month</div><div class="v"><small>AED</small>${fmt(c.monthlyNet)}</div><div class="s">+ VAT</div></div><div class="card kpi"><div class="l">Est. total</div><div class="v"><small>AED</small>${fmt(c.total)}</div><div class="s">${c.months} months incl. VAT</div></div><div class="card kpi"><div class="l">At move-in</div><div class="v"><small>AED</small>${fmt(c.moveIn)}</div><div class="s">${c.dep ? 'incl. deposit ' + fmt(c.dep) : 'no deposit'}</div></div><div class="card kpi"><div class="l">Valid until</div><div class="v" style="font-size:18px">${fdate(q.validUntil)}</div><div class="s">${q.followUp && ['draft', 'sent'].includes(s) ? 'Follow up ' + fdate(q.followUp) : ''}</div></div></div>
+    ${q.cid ? `<div class="alert good" style="margin-bottom:10px"><span class="ic">✓</span><div><b>Converted to storage record ${esc(q.cid)}</b>${q.convertedAt ? 'on ' + new Date(q.convertedAt).toLocaleString('en-GB') : ''}${q.convertedBy ? ' by ' + esc(q.convertedBy) : ''}</div></div>` : ''}
+    ${s === 'declined' && q.lostReason ? `<div class="alert bad" style="margin-bottom:10px"><span class="ic">!</span><div><b>Declined</b>${esc(q.lostReason)}</div></div>` : ''}
+    ${revs.length > 1 ? `<div class="small muted" style="margin-bottom:8px">Revisions: ${revs.map(r => `<a href="#" onclick="quoteView('${r.id}');return false">${esc(r.no)}</a>`).join(' · ')}</div>` : ''}
+    ${previewDoc(quoteModel(q))}
+    <div class="sect">Activity</div><div class="small">${(q.log || []).slice().reverse().map(l => `<div>${new Date(l.at).toLocaleString('en-GB')} — ${esc(l.ev)}${l.by ? ' <span class="muted">(' + esc(l.by) + ')</span>' : ''}</div>`).join('') || '<span class="muted">—</span>'}</div>`,
+    foot: `<button class="btn" id="qdup">Duplicate</button>${['sent', 'expired', 'accepted', 'draft'].includes(s) && !q.cid ? '<button class="btn" id="qrev">Revise</button>' : ''}${['draft', 'sent'].includes(q.status) ? `<button class="btn" onclick="quoteForm('${id}')">Edit</button>` : ''}<span class="grow"></span>
+      ${['draft', 'sent', 'expired'].includes(s) ? '<button class="btn dng" id="qlost">Declined</button><button class="btn" id="qacc">Accepted ✓</button>' : ''}
+      ${wa ? `<a class="btn" id="qwa" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(txt)}">WhatsApp</a>` : ''}${cu.email ? `<a class="btn" id="qem" href="mailto:${esc(cu.email)}?subject=${encodeURIComponent('Storage quotation ' + q.no + ' – ' + company().short)}&body=${encodeURIComponent(txt)}">Email</a>` : ''}<button class="btn" id="qcp">Copy text</button><button class="btn pri" id="qpdf">${ico('pdf')}PDF</button>`,
+    mount(m) {
+      const log = async (patch, ev) => { const x = { ...clone(q), ...patch }; x.log = [...(q.log || []), { at: new Date().toISOString(), by: UID || '', ev }]; await Store.save('quotes', x); quoteView(id); };
+      const markSent = how => { if (q.status === 'draft') log({ status: 'sent', sentAt: new Date().toISOString() }, 'Sent by ' + how); else log({}, 'Re-sent by ' + how); };
+      $('#qpdf', m).onclick = () => { downloadPDF(quoteModel(q), `${q.no}_${qName(q).replace(/\W+/g, '_').slice(0, 30)}.pdf`); if (q.status === 'draft') markSent('PDF'); };
+      $('#qcp', m).onclick = async () => { try { await navigator.clipboard.writeText(txt); toast('Message copied — attach the PDF when you send it'); } catch (e) { toast('Copy not allowed here', 1); } if (q.status === 'draft') markSent('message'); };
+      if ($('#qwa', m)) $('#qwa', m).addEventListener('click', () => setTimeout(() => markSent('WhatsApp'), 300));
+      if ($('#qem', m)) $('#qem', m).addEventListener('click', () => setTimeout(() => markSent('email'), 300));
+      if ($('#qacc', m)) $('#qacc', m).onclick = async () => {
+        const v = await promptDlg('Quotation accepted', `${fDate('Expected move-in', 'start', (q.st || {}).start || today())}<div class="small muted">${MODE === 'firebase' ? 'Front desk can now open the warehouse intake form → <b>📋 From quotation</b> to load this customer, goods and rates. Saving the intake record marks it Converted.' : 'Use these details when the goods arrive at the warehouse.'}</div>`, 'Mark accepted');
+        if (v) log({ status: 'accepted', acceptedAt: new Date().toISOString(), st: { ...(q.st || {}), start: v.start } }, 'Accepted by customer');
+      };
+      if ($('#qlost', m)) $('#qlost', m).onclick = async () => { const v = await promptDlg('Why was it declined?', fSel('Reason', 'r', 'Price too high', ['Price too high', 'Chose a competitor', 'Location / access', 'Plans changed', 'No response', 'Other']) + fText('Details', 'd', ''), 'Mark declined'); if (v) log({ status: 'declined', lostReason: v.r + (v.d ? ' – ' + v.d : '') }, 'Declined: ' + v.r); };
+      $('#qdup', m).onclick = () => { const d = clone(q); ['id', 'no', 'rev', 'baseNo', 'log', 'cid', 'convertedAt', 'convertedBy', 'acceptedAt', 'sentAt', 'lostReason', 'createdAt', 'updatedAt'].forEach(k => delete d[k]); Object.assign(d, { status: 'draft', date: today(), validUntil: addDays(today(), num(QDEF().validity) || 15), followUp: addDays(today(), 3) }); quoteForm(null, d); };
+      if ($('#qrev', m)) $('#qrev', m).onclick = async () => {
+        const base = q.baseNo || q.no, rev = Math.max(0, ...list('quotes', x => (x.baseNo || x.no) === base).map(x => x.rev || 0)) + 1;
+        const d = clone(q); ['createdAt', 'updatedAt', 'sentAt', 'acceptedAt', 'lostReason'].forEach(k => delete d[k]);
+        Object.assign(d, { no: `${base}-R${rev}`, id: `${base}-R${rev}`.replace(/[^A-Za-z0-9_-]/g, '_'), baseNo: base, rev, status: 'draft', date: today(), validUntil: addDays(today(), num(QDEF().validity) || 15), log: [{ at: new Date().toISOString(), by: UID || '', ev: 'Revision of ' + q.no }] });
+        await Store.save('quotes', d); await Store.save('quotes', { ...clone(q), status: 'superseded', log: [...(q.log || []), { at: new Date().toISOString(), by: UID || '', ev: 'Replaced by ' + d.no }] });
+        quoteForm(d.id);
+      };
+    }
+  });
+}
+async function quoteSettings() {
+  const D = QDEF();
+  const v = await promptDlg('Quotation settings', `${fNum('Valid for (days)', 'validity', D.validity)}${fNum('Default deposit (months of storage, 0 = none)', 'depMonths', D.depMonths)}
+    <div class="small muted">Long-stay discount on storage (months ≥ → %)</div><div class="row">${[0, 1, 2].map(i => `<input class="inp num" style="width:70px" type="number" data-k="t${i}m" value="${(D.tiers[i] || {}).m ?? ''}" placeholder="months"><input class="inp num" style="width:60px" type="number" data-k="t${i}p" value="${(D.tiers[i] || {}).p ?? ''}" placeholder="%">`).join('<span class="muted">·</span>')}</div>
+    ${fArea('Terms printed on quotations', 'terms', D.terms, { rows: 6 })}`, 'Save');
+  if (!v) return;
+  const tiers = [0, 1, 2].map(i => ({ m: num(v['t' + i + 'm']), p: num(v['t' + i + 'p']) })).filter(t => t.m > 0 && t.p > 0);
+  await Store.save('meta', { ...clone(S.meta.company), quote: { ...(S.meta.company.quote || {}), validity: num(v.validity) || 15, depMonths: num(v.depMonths), tiers, terms: v.terms } }); toast('Quotation settings saved');
 }
 
 
