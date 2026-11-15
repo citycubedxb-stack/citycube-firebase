@@ -475,6 +475,7 @@ const Store = {
       this._q[key].catch(() => { });
     } else this._persistLocal();
     this.onChange && this.onChange(col);
+    if (typeof ATTP !== 'undefined' && ATTP[rec.id] && ATTP[rec.id].col === col && ATTP[rec.id].files.length) { const f = ATTP[rec.id].files; delete ATTP[rec.id]; setTimeout(() => attachFiles(col, rec.id, f), 50); }
     return rec;
   },
   async remove(col, id) {
@@ -891,15 +892,24 @@ async function docPDF(m) {
     d.text(L, y + 9, hd.toUpperCase(), { size: 7, bold: true, color: CYAN }); y += 12;
     lines.forEach(t => { ensure(11); d.text(L, y + 9, t, { size: 8, color: INK2 }); y += 10.5; }); y += 7;
   });
-  if (m.sign) {
-    ensure(60); y += 26;
-    d.line(L, y, L + 170, y, { color: '#9aa7ba' }); d.line(R - 170, y, R, y, { color: '#9aa7ba' });
-    d.text(L, y + 11, m.sign[0] || 'Authorised Signatory', { size: 8, color: INK2 }); d.text(R, y + 11, m.sign[1] || 'Received by', { size: 8, color: INK2, align: 'right' }); y += 20;
-  }
-  if (m.foot) { ensure(14); d.text(L, Math.max(y + 4, 0) + 6, m.foot, { size: 7, color: INK3 }); }
-  const n = d.pages.length; d.pages.forEach((p, i) => { d.cur = p; d.text(555, 834, `Page ${i + 1} of ${n}`, { size: 7, color: INK3, align: 'right' }); if (m.docRef) d.text(40, 834, m.docRef, { size: 7, color: INK3 }); });
+  // Signature blocks – only where a recipient must sign
+  (m.boxes || []).forEach(bx => {
+    const tl = bx.text ? PDF.wrap(bx.text, 499, 8) : [], rows = Math.ceil(bx.fields.length / 2);
+    const h = 22 + tl.length * 10.5 + rows * 30 + 6; ensure(h + 14); y += 6;
+    d.rect(L, y, 515, h, { stroke: '#c9d3e0', lw: .7 }); d.rect(L, y, 3, h, { fill: CYAN });
+    d.text(L + 12, y + 14, bx.title.toUpperCase(), { size: 7.5, bold: true, color: NAVY });
+    let yy = y + 26; tl.forEach(t => { d.text(L + 12, yy, t, { size: 8, color: INK2 }); yy += 10.5; });
+    bx.fields.forEach((f, i) => { const col = i % 2, row = Math.floor(i / 2), fx = L + 12 + col * 252, fy = yy + row * 30 + 20; d.line(fx, fy, fx + 235, fy, { color: '#9aa7ba', lw: .6 }); d.text(fx, fy + 9, f, { size: 7, color: INK3 }); });
+    y += h + 8;
+  });
+  // Computer-generated statement
+  const cg = m.cg === undefined ? 'This document is computer-generated and does not require a signature.' : m.cg;
+  if (cg) { const cl = PDF.wrap(cg, 495, 7.5); const h = cl.length * 9.5 + 10; ensure(h + 6); y += 4; d.rect(L, y, 515, h, { fill: '#eef6f9' }); d.rect(L, y, 2.2, h, { fill: CYAN }); cl.forEach((t, i) => d.text(L + 12, y + 12 + i * 9.5, t, { size: 7.5, color: INK2 })); y += h; }
+  const stamp = genStamp(); const n = d.pages.length;
+  d.pages.forEach((p, i) => { d.cur = p; d.text(555, 834, `Page ${i + 1} of ${n}`, { size: 7, color: INK3, align: 'right' }); d.text(40, 834, [m.docRef, stamp].filter(Boolean).join('   ·   '), { size: 7, color: INK3 }); });
   return d.build(await PDF.loadLogo(LOGO));
 }
+function genStamp() { const u = (typeof UID !== 'undefined' && UID) ? String(UID).split('@')[0] : ''; return 'Generated ' + new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + (u ? ' by ' + u : '') + ' · CityCube Accounts'; }
 function docHTML(m) {
   const C = company();
   const hex = hexCells(-20, 170, 560, 775, 24).map(c => `<polygon points="${c.hex.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ')}"/>` + c.spokes.map(p => `<line x1="${c.x.toFixed(1)}" y1="${c.y.toFixed(1)}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`).join('')).join('');
@@ -925,7 +935,8 @@ function docHTML(m) {
   .bot{display:flex;gap:18px;margin-top:14px;position:relative}.words{flex:1}.words b{display:block;margin-top:2px}
   .tot{width:78mm}.tot div{display:flex;justify-content:space-between;padding:3px 8px}.tot span{color:${INK2}}.tot .g{background:${NAVY};color:#fff;font-weight:700;font-size:12px;padding:5px 8px;margin-top:2px}.tot .g span{color:#fff}
   .note{margin-top:10px;position:relative}.note div{color:${INK2};white-space:pre-wrap}
-  .sign{display:flex;justify-content:space-between;margin-top:48px;color:${INK2};position:relative}.sign div{border-top:.7px solid #9aa7ba;width:60mm;padding-top:4px}.sign div+div{text-align:right}
+  .sbx{position:relative;border:.7px solid #c9d3e0;border-left:3px solid ${CYAN};padding:8px 12px 10px;margin-top:14px;background:#fff}.sbx .st{font-size:9px;font-weight:700;color:${NAVY};letter-spacing:.6px}.sbx .sx{color:${INK2};margin-top:4px}.sbx .sf{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-top:6px}.sbx .sf div{font-size:9px;color:${INK3};padding-top:22px}.sbx .sf span{display:block;border-top:.6px solid #9aa7ba;margin-bottom:3px}
+  .cgn{position:relative;margin-top:12px;background:#eef6f9;border-left:2px solid ${CYAN};padding:6px 10px;color:${INK2};font-size:9.5px}.gen{position:relative;margin-top:6px;color:${INK3};font-size:8.5px}
   .foot{position:absolute;left:14mm;right:14mm;bottom:10mm;text-align:center;border-top:1px solid ${NAVY};padding-top:5px;line-height:1.45}
   .foot b{color:${NAVY};font-size:11px}.foot div{color:${INK2};font-size:9.8px}.cg{color:${INK3};font-size:9px;margin-top:10px;position:relative}
   </style></head><body><div class="pg"><svg class="hex" viewBox="0 0 595.28 841.89">${hex}</svg><img class="logo" src="${LOGO}">
@@ -935,8 +946,9 @@ function docHTML(m) {
   ${(m.tables || (m.table ? [m.table] : [])).map(tbl).join('')}
   ${m.totals ? `<div class="bot"><div class="words">${m.words ? `<div class="lab">AMOUNT IN WORDS</div><b>${esc(m.words)}</b>` : ''}</div><div class="tot">${m.totals.map(([k, v, b]) => `<div class="${b ? 'g' : ''}"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>` : ''}
   ${(m.notes || []).filter(n => n[1]).map(([h, t]) => `<div class="note"><div class="lab">${esc(h.toUpperCase())}</div><div>${esc(t)}</div></div>`).join('')}
-  ${m.sign ? `<div class="sign"><div>${esc(m.sign[0])}</div><div>${esc(m.sign[1])}</div></div>` : ''}
-  ${m.foot ? `<div class="cg">${esc(m.foot)}</div>` : ''}
+  ${(m.boxes || []).map(bx => `<div class="sbx"><div class="st">${esc(bx.title.toUpperCase())}</div>${bx.text ? `<div class="sx">${esc(bx.text)}</div>` : ''}<div class="sf">${bx.fields.map(f => `<div><span></span>${esc(f)}</div>`).join('')}</div></div>`).join('')}
+  ${(m.cg === undefined ? 'This document is computer-generated and does not require a signature.' : m.cg) ? `<div class="cgn">${esc(m.cg === undefined ? 'This document is computer-generated and does not require a signature.' : m.cg)}</div>` : ''}
+  <div class="gen">${esc([m.docRef, genStamp()].filter(Boolean).join('  ·  '))}</div>
   <div class="foot"><b>${esc(C.name)}</b><div>${esc(C.address)}</div><div>${esc([C.web, C.email, C.phone + ' (Mobile & WhatsApp)'].join('  |  '))}</div></div>
   </div></body></html>`;
 }
@@ -967,7 +979,7 @@ function invoiceModel(inv) {
     title: inv.status === 'draft' ? 'TAX INVOICE (DRAFT)' : 'TAX INVOICE', subtitle: C.name, subtitle2: 'Supplier TRN: ' + (C.trn || '—') + (C.licence ? '   •   Trade licence: ' + C.licence : ''),
     blocks: [custBlock(cust, snap)], meta, table: salesLinesTable(inv), totals, words: words(inv.totalAed),
     notes: [['VAT treatment', [zr ? 'Zero-rated supplies are charged VAT at 0% under Federal Decree-Law No. 8 of 2017.' : '', os ? 'Items marked O/S are disbursements / out-of-scope amounts recharged at cost.' : ''].filter(Boolean).join(' ')], ['Notes', inv.notes], ['Payment details', bank], ['Terms', C.invTerms]],
-    sign: ['For ' + C.short, "Customer's acknowledgement"], foot: 'This is a computer-generated tax invoice issued in accordance with the UAE VAT Law and its Executive Regulation.', docRef: inv.no
+    cg: 'This is a computer-generated tax invoice issued in accordance with Federal Decree-Law No. 8 of 2017 on Value Added Tax and its Executive Regulation, and is valid without signature or company stamp. Please quote the invoice number with your payment and notify us of any discrepancy within 7 days of receipt.', docRef: inv.no
   };
 }
 function creditNoteModel(cn) {
@@ -978,8 +990,8 @@ function creditNoteModel(cn) {
     meta: [['Credit note no.', cn.no || 'DRAFT'], ['Date of issue', fdate(cn.date)], ['Original tax invoice', inv.no || '—'], ['Original invoice date', fdate(inv.date)]],
     table: salesLinesTable(cn),
     totals: [['Value of supply adjusted', `${cur} ${fmt(cn.net)}`], ['VAT adjusted @ 5%', `${cur} ${fmt(cn.vat)}`], ['Total credit', `${cur} ${fmt(cn.total)}`, 1]],
-    words: words(cn.totalAed), notes: [['Reason for credit note', cn.reason], ['Notes', cn.notes]], sign: ['For ' + C.short, "Customer's acknowledgement"],
-    foot: 'Tax credit note issued under Article 60 of the Executive Regulation of the UAE VAT Law.', docRef: cn.no
+    words: words(cn.totalAed), notes: [['Reason for credit note', cn.reason], ['Notes', cn.notes]],
+    cg: 'This is a computer-generated tax credit note issued under Article 60 of the Executive Regulation of the UAE VAT Law and is valid without signature or company stamp. The VAT adjustment shown is reported in the tax period in which this credit note is issued.', docRef: cn.no
   };
 }
 function receiptModel(r) {
@@ -992,8 +1004,8 @@ function receiptModel(r) {
     blocks: [{ label: 'Received from', lines: [cust.name, cust.address, cust.trn ? 'TRN: ' + cust.trn : ''] }],
     meta: [['Receipt no.', r.no], ['Date', fdate(r.date)], ['Method', meth], ...(r.chqNo ? [['Cheque no.', r.chqNo]] : []), ...(r.chqDate ? [['Cheque date', fdate(r.chqDate)]] : []), ...(r.chqBank ? [['Drawn on', r.chqBank]] : []), ['Deposited to', ACC(r.acc).name]],
     table: { cols: [{ h: 'Applied to invoice', w: 30 }, { h: 'Invoice date', w: 20 }, { h: 'Invoice total (AED)', w: 25, a: 'r' }, { h: 'Amount applied (AED)', w: 25, a: 'r' }], rows },
-    totals: [['Amount received', 'AED ' + fmt(r.amount), 1]], words: words(r.amount), notes: [['Memo', r.memo], ['Note', r.method === 'pdc' ? 'Receipt of post-dated cheque is subject to realisation on presentation.' : '']],
-    sign: ['Received by (for ' + C.short + ')', 'Customer'], docRef: r.no
+    totals: [['Amount received', 'AED ' + fmt(r.amount), 1]], words: words(r.amount), notes: [['Memo', r.memo]],
+    cg: 'This is a computer-generated receipt and is valid without signature or company stamp.' + (['pdc', 'cheque'].includes(r.method) ? ' Payment by cheque is subject to realisation; this receipt becomes void if the cheque is returned unpaid.' : ''), docRef: r.no
   };
 }
 function paymentModel(p) {
@@ -1003,7 +1015,9 @@ function paymentModel(p) {
     title: 'PAYMENT VOUCHER', subtitle: C.name, blocks: [{ label: 'Paid to', lines: [v.name, v.address, v.trn ? 'TRN: ' + v.trn : ''] }],
     meta: [['Voucher no.', p.no], ['Date', fdate(p.date)], ['Paid from', ACC(p.acc).name], ...(p.chqNo ? [['Cheque no.', p.chqNo]] : []), ...(p.chqDate ? [['Cheque date', fdate(p.chqDate)]] : [])],
     table: { cols: [{ h: 'Supplier invoice', w: 30 }, { h: 'Date', w: 20 }, { h: 'Invoice total (AED)', w: 25, a: 'r' }, { h: 'Amount paid (AED)', w: 25, a: 'r' }], rows },
-    totals: [['Amount paid', 'AED ' + fmt(p.amount), 1]], words: words(p.amount), notes: [['Memo', p.memo]], sign: ['Prepared / Approved by', 'Received by'], docRef: p.no
+    totals: [['Amount paid', 'AED ' + fmt(p.amount), 1]], words: words(p.amount), notes: [['Memo', p.memo]],
+    boxes: ['cash', 'cheque', 'pdc'].includes(p.method) ? [{ title: 'Payee acknowledgement', text: `Received from ${C.name} the sum of AED ${fmt(p.amount)} (${words(p.amount)}) by ${p.method === 'cash' ? 'cash' : 'cheque' + (p.chqNo ? ' no. ' + p.chqNo : '')}, in settlement of the invoices listed above.`, fields: ['Name of recipient', 'Signature', 'Emirates ID / company stamp', 'Date'] }] : [],
+    cg: 'This is a computer-generated payment voucher; approval is recorded electronically and no authorising signature is required.' + (['cash', 'cheque', 'pdc'].includes(p.method) ? ' The payee acknowledgement above must be completed for payments made in cash or by cheque.' : ' Payment was made by bank transfer; the bank advice serves as proof of payment.'), docRef: p.no
   };
 }
 function moneyModel(m) {
@@ -1013,7 +1027,9 @@ function moneyModel(m) {
     blocks: [{ label: m.dir === 'in' ? 'Received from' : 'Paid to', lines: [m.payee || '—', m.payeeTrn ? 'TRN: ' + m.payeeTrn : ''] }],
     meta: [['Voucher no.', m.no], ['Date', fdate(m.date)], [m.dir === 'in' ? 'Deposited to' : 'Paid from', ACC(m.acc).name], ...(m.ref ? [['Reference', m.ref]] : [])],
     table: { cols: [{ h: 'Account', w: 30 }, { h: 'Description', w: 30 }, { h: 'Net (AED)', w: 14, a: 'r' }, { h: 'VAT', w: 12, a: 'r' }, { h: 'Total (AED)', w: 14, a: 'r' }], rows: (m.lines || []).map(l => [accName(l.acc), l.desc, fmt(l.net), fmt(l.vatAmt), fmt(l.net + (m.dir === 'in' ? (l.vat === 'SR' ? l.vatAmt : 0) : (l.vat === 'SR' || l.vat === 'NR' ? l.vatAmt : 0)))]) },
-    totals: [['Total', 'AED ' + fmt(m.total), 1]], words: words(m.total), notes: [['Memo', m.memo]], sign: ['Prepared by', 'Approved by'], docRef: m.no
+    totals: [['Total', 'AED ' + fmt(m.total), 1]], words: words(m.total), notes: [['Memo', m.memo]],
+    boxes: m.dir === 'out' && ACC(m.acc).group === 'cash' && !ACC(m.acc).bank ? [{ title: 'Payee acknowledgement', text: `Received the sum of AED ${fmt(m.total)} (${words(m.total)}) in cash for the purpose stated above.`, fields: ['Name of recipient', 'Signature', 'Emirates ID / mobile', 'Date'] }] : [],
+    cg: 'This is a computer-generated voucher; approval is recorded electronically and no authorising signature is required.' + (m.dir === 'out' && ACC(m.acc).group === 'cash' && !ACC(m.acc).bank ? ' The payee acknowledgement above must be completed for cash payments.' : ''), docRef: m.no
   };
 }
 function journalModel(j) {
@@ -1021,7 +1037,7 @@ function journalModel(j) {
   return {
     title: 'JOURNAL VOUCHER', subtitle: C.name, meta: [['Voucher no.', j.no], ['Date', fdate(j.date)]], intro: j.memo,
     table: { cols: [{ h: 'Account', w: 38 }, { h: 'Description', w: 34 }, { h: 'Debit', w: 14, a: 'r' }, { h: 'Credit', w: 14, a: 'r' }], rows: [...(j.lines || []).map(l => [accName(l.acc), l.desc, num(l.dr) ? fmt(l.dr) : '', num(l.cr) ? fmt(l.cr) : '']), { c: ['Total', '', fmt(dr), fmt(cr)], b: 1, fill: '#eef2f6' }] },
-    sign: ['Prepared by', 'Approved by'], docRef: j.no
+    cg: `This is a computer-generated journal voucher, posted electronically${j.updatedBy ? ' by ' + String(j.updatedBy).split('@')[0] : ''}${j.updatedAt ? ' on ' + new Date(j.updatedAt).toLocaleString('en-GB') : ''}; no signature is required. Supporting documents are held with the entry.`, docRef: j.no
   };
 }
 function statementModel(custId, from, to) {
@@ -1038,7 +1054,8 @@ function statementModel(custId, from, to) {
     tables: [{ cols: [{ h: 'Date', w: 14 }, { h: 'Transaction', w: 28 }, { h: 'Reference', w: 18 }, { h: 'Debit', w: 13, a: 'r' }, { h: 'Credit', w: 13, a: 'r' }, { h: 'Balance', w: 14, a: 'r' }], rows },
     { caption: 'Ageing of balance as at ' + fdate(to), cols: [...BUCKETS.map(b => ({ h: b + (b === 'Current' ? '' : ' days'), w: 14, a: 'r' })), { h: 'Unapplied', w: 16, a: 'r' }], rows: [[...ag.b.map(x => fmt(x)), fmt(ag.un)]], plain: 1 }],
     notes: [['Payment details', [C.bankName && 'Bank: ' + C.bankName, C.iban && 'IBAN: ' + C.iban, C.swift && 'SWIFT: ' + C.swift].filter(Boolean).join('   •   ')]],
-    foot: 'Please notify us within 15 days of any discrepancy. Thank you for your business.', docRef: 'SOA ' + (c.code || '')
+    boxes: [{ title: 'Balance confirmation (for audit purposes)', text: `Please confirm the balance of AED ${fmt(run)} due to ${C.short} as at ${fdate(to)} by signing and returning this statement. If it does not agree with your records, please attach details of the difference.`, fields: ['Balance agreed / not agreed (please circle)', 'Name & designation', 'Signature & company stamp', 'Date'] }],
+    cg: 'This is a computer-generated statement of account and does not require a signature. Please notify us of any discrepancy within 15 days of the statement date; otherwise the balance will be considered correct. Thank you for your business.', docRef: 'SOA ' + (c.code || '')
   };
 }
 
@@ -1105,7 +1122,7 @@ const Modal = {
     m.classList.add('on'); m.onmousedown = e => { if (e.target === m) Modal.close(); };
     m.querySelector('[data-x]').onclick = () => Modal.close();
     if (mount) mount(m.querySelector('.dw'));
-    $$('[data-att]', m).forEach(mountAtt);
+    $$('[data-att]', m).forEach(mountAtt); $$('[data-attp]', m).forEach(mountAttPending);
   },
   close() { const m = $('#modal'); m.classList.remove('on'); m.innerHTML = ''; if (_pendingRender) render(); },
   get isOpen() { return $('#modal').classList.contains('on'); }
@@ -1346,7 +1363,7 @@ function customerForm(id) {
     ${fNum('Credit limit (AED)', 'creditLimit', c.creditLimit)}${fChk('Inactive', 'inactive', c.inactive)}</div>
     <div class="sect">Contracted rate card (used by the warehouse billing run)</div>
     <div class="fg" id="rf">${fSel('Storage basis', 'basis', rc.basis, Object.entries(BASIS).map(([k, v]) => [k, v.n]))}${fNum('Storage rate (AED)', 'storage', rc.storage)}${fNum('Handling in / pallet', 'hin', rc.hin)}${fNum('Handling out / pallet', 'hout', rc.hout)}
-    ${fNum('VAS rate / unit', 'vasRate', rc.vasRate)}${fNum('Minimum monthly storage (AED)', 'min', rc.min)}${fText('Contract ref / notes', 'notes', rc.notes, { cls: 's2' })}</div>`,
+    ${fNum('VAS rate / unit', 'vasRate', rc.vasRate)}${fNum('Minimum monthly storage (AED)', 'min', rc.min)}${fText('Contract ref / notes', 'notes', rc.notes, { cls: 's2' })}</div>${attBlock('customers', c.id)}`,
     foot: `<span class="grow"></span><button class="btn" onclick="Modal.close()">Cancel</button><button class="btn pri" id="csave">Save customer</button>`,
     mount(m) {
       $('#csave', m).onclick = async () => {
@@ -1451,7 +1468,7 @@ function invoiceForm(id, custId, preset) {
       <div class="row">${fDate('Service period from', 'recog.from', inv.recog && inv.recog.from)}${fDate('Service period to', 'recog.to', inv.recog && inv.recog.to)}${fText('Period text on invoice', 'period', inv.period, { a: { placeholder: 'e.g. October 2026' } })}</div>
       ${fArea('Notes printed on invoice', 'notes', inv.notes)}</div>
       <div class="totals" id="tots"></div></div>
-    <div id="warn" style="margin-top:10px"></div>`,
+    <div id="warn" style="margin-top:10px"></div>${attBlock('invoices', inv.id)}`,
     foot: `${id ? `<button class="btn dng" id="idel">Delete draft</button>` : ''}<span class="grow"></span><button class="btn" id="ipv">Preview</button><button class="btn" id="isave">Save draft</button><button class="btn pri" id="iissue">Save & issue</button>`,
     mount(m) {
       const hf = $('#hf', m);
@@ -1628,7 +1645,7 @@ function creditNoteForm(id, invId) {
   Modal.open({
     title: 'Tax credit note', body: `<div class="fg" id="hf"><label class="f s2">Original tax invoice<select data-k="invId"><option value="">Select invoice…</option>${opts(invOpts(), cn.invId)}</select></label>${fDate('Credit note date', 'date', cn.date)}${fSel('Reason', 'reasonCode', cn.reasonCode || 'Price adjustment', ['Price adjustment', 'Service not rendered / cancelled', 'Billing error', 'Volume discount', 'Goods returned / storage ended early', 'Other'])}${fText('Explanation (printed)', 'reason', cn.reason, { cls: 's4' })}</div>
     <div class="sect">Lines being credited (edit quantities / rates to the amount being reduced)</div><div id="lines"><table class="li"><thead><tr><th>Service</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Discount</th><th>VAT</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div>
-    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>`,
+    <div class="row" style="margin-top:14px;align-items:flex-start"><div class="grow" style="margin-right:20px">${attBlock('creditnotes', cn.id)}</div><div class="totals" id="tots"></div></div>`,
     foot: `${id ? '<button class="btn dng" id="cdel">Delete draft</button>' : ''}<span class="grow"></span><button class="btn" id="csave">Save draft</button><button class="btn pri" id="ciss">Save & issue</button>`,
     mount(m) {
       const hf = $('#hf', m);
@@ -1686,7 +1703,7 @@ function receiptForm(id, custId, invId) {
   Modal.open({
     title: id ? 'Edit receipt ' + esc(r.no) : 'Receive payment', size: 'mid', body: `<div class="fg" id="rf"><label class="f s2">Customer<select data-k="custId"><option value="">Select customer…</option>${custOpts(r.custId)}</select></label>${fDate('Receipt date', 'date', r.date)}${fNum('Amount received (AED)', 'amount', r.amount)}
     ${fSel('Method', 'method', r.method, [['bank', 'Bank transfer'], ['cash', 'Cash'], ['cheque', 'Cheque (current dated)'], ['pdc', 'Post-dated cheque (PDC)'], ['card', 'Card']])}${fAcc('Deposit to', 'acc', r.acc, a => a.group === 'cash')}${fText('Cheque / transfer ref', 'chqNo', r.chqNo)}${fDate('Cheque date', 'chqDate', r.chqDate)}${fText('Drawn on bank', 'chqBank', r.chqBank)}${fText('Memo', 'memo', r.memo, { cls: 's3' })}</div>
-    <div class="sect">Apply to open invoices</div><div id="alloc"></div>`,
+    <div class="sect">Apply to open invoices</div><div id="alloc"></div>${attBlock('receipts', r.id)}`,
     foot: `${id ? '<button class="btn dng" id="rvoid">Void receipt</button>' : ''}<span class="grow"></span><button class="btn" id="rauto">Auto-apply oldest first</button><button class="btn pri" id="rsave">Save receipt</button>`,
     mount(m) {
       const rf = $('#rf', m);
@@ -1742,7 +1759,7 @@ function vendorForm(id) {
   Modal.open({
     title: id ? 'Edit supplier' : 'New supplier', size: 'mid', body: `<div class="fg" id="vf">${fText('Supplier name', 'name', v.name, { cls: 's3' })}${fText('TRN', 'trn', v.trn, { a: { maxlength: 15 } })}${fArea('Address', 'address', v.address, { cls: 's2' })}${fText('Country', 'country', v.country)}${fNum('Credit days', 'terms', v.terms)}
     ${fText('Phone', 'phone', v.phone)}${fText('Email', 'email', v.email)}${fText('IBAN', 'iban', v.iban, { cls: 's2' })}${fAcc('Default account', 'acc', v.acc, null, { cls: 's2' })}${fSel('Default VAT code', 'vat', v.vat, Object.entries(PURCH_VAT).map(([k, x]) => [k, x.n]), { cls: 's2' })}${fChk('Inactive', 'inactive', v.inactive)}</div>
-    <div class="small muted" style="margin-top:10px">Use <b>RC</b> for services bought from suppliers outside the UAE (reverse charge – no self-invoice required from 1 Jan 2026; keep the supplier invoice) and <b>IM</b> for goods imported through UAE customs.</div>${id ? attSection('vendors', id) : ''}`,
+    <div class="small muted" style="margin-top:10px">Use <b>RC</b> for services bought from suppliers outside the UAE (reverse charge – no self-invoice required from 1 Jan 2026; keep the supplier invoice) and <b>IM</b> for goods imported through UAE customs.</div>${attBlock('vendors', v.id)}`,
     foot: `<span class="grow"></span><button class="btn" onclick="Modal.close()">Cancel</button><button class="btn pri" id="vs">Save supplier</button>`,
     mount(m) { $('#vs', m).onclick = async () => { const x = vals($('#vf', m)); if (!x.name) return toast('Name is required', 1); if (x.trn && !/^\d{15}$/.test(x.trn)) return toast('TRN must be 15 digits', 1); await Store.save('vendors', { ...v, ...x }); Modal.close(); toast('Supplier saved'); }; }
   });
@@ -1774,7 +1791,7 @@ function billForm(id, kind) {
     <fieldset ${locked ? 'disabled' : ''} style="border:0;padding:0;margin:0"><div class="fg" id="hf"><label class="f s2">Supplier<select data-k="vendId"><option value="">Select supplier…</option>${vendOpts(b.vendId)}</select></label>${fText(b.kind === 'credit' ? 'Supplier credit note no.' : 'Supplier invoice no.', 'supNo', b.supNo)}${fDate('Invoice date', 'date', b.date)}
     ${fDate('Due date', 'due', b.due)}${b.kind === 'credit' ? `<label class="f s2">Against bill<select data-k="billId"><option value="">—</option>${opts(list('bills', x => x.kind !== 'credit' && x.status === 'posted').map(x => [x.id, `${x.no} · ${x.supNo || ''} · ${vendName(x.vendId)}`]), b.billId)}</select></label>` : ''}${fChk('Opening balance (pre go-live)', 'opening', b.opening)}${fText('Memo', 'memo', b.memo, { cls: 's2' })}</div>
     <div class="sect">Expense / asset lines</div><div id="lines"><table class="li"><thead><tr><th>Account</th><th>Description</th><th>Net (AED)</th><th>VAT</th><th>VAT amt</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div></fieldset>
-    ${id ? attSection('bills', b.id) : '<div class="sect">Supporting documents</div><div class="muted small">Save the bill first, then attach the supplier tax invoice.</div>'}
+    ${attBlock('bills', b.id)}
     <div class="row" style="margin-top:14px;align-items:flex-start"><div class="grow small muted">VAT codes: SR recoverable · NR blocked (e.g. entertainment, Art. 53 Exec. Reg.) · RC reverse charge imported services · IM import of goods · ZR/EX/OS no VAT. Capital items (racking, forklifts) go to the 15xx asset accounts — then add them to the Fixed Asset register.</div><div class="totals" id="tots"></div></div>${b.createdAt ? auditLine(b) : ''}`,
     foot: locked ? `${b.status === 'posted' ? '<button class="btn dng" id="bvoid">Void</button>' : ''}<span class="grow"></span>${b.status === 'posted' && b.kind !== 'credit' && billBal(b) > 0 ? `<button class="btn pri" onclick="paymentForm(null,'${b.vendId}','${b.id}')">Pay bill</button>` : ''}`
       : `${id ? '<button class="btn dng" id="bdel">Delete draft</button>' : ''}<span class="grow"></span><button class="btn" id="bsave">Save draft</button><button class="btn pri" id="bpost">Post bill</button>`,
@@ -1853,7 +1870,7 @@ function moneyForm(id, dir, preset) {
     title: (x.dir === 'in' ? 'Money in' : 'Expense / money out') + (x.no ? ' ' + esc(x.no) : ''), body: `<div class="fg" id="hf">${fText(x.dir === 'in' ? 'Received from' : 'Paid to', 'payee', x.payee, { cls: 's2' })}${fText('Payee TRN (for input VAT)', 'payeeTrn', x.payeeTrn)}${fDate('Date', 'date', x.date)}
     ${fAcc(x.dir === 'in' ? 'Deposited to' : 'Paid from', 'acc', x.acc, a => a.group === 'cash', { cls: 's2' })}${fText('Reference / receipt no.', 'ref', x.ref)}${fText('Memo', 'memo', x.memo)}</div>
     <div class="sect">Allocation</div><div id="lines"><table class="li"><thead><tr><th>Account</th><th>Description</th><th>Net</th><th>VAT</th><th>VAT amt</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div>
-    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>`,
+    <div class="row" style="margin-top:14px;align-items:flex-start"><div class="grow" style="margin-right:20px">${attBlock('money', x.id)}</div><div class="totals" id="tots"></div></div>`,
     foot: `${id ? '<button class="btn dng" id="mvoid">Void</button>' : ''}<span class="grow"></span><button class="btn pri" id="msave">Save voucher</button>`,
     mount(m) {
       const hf = $('#hf', m);
@@ -1917,7 +1934,7 @@ function journalForm(id, preset) {
   Modal.open({
     title: id ? 'Journal ' + esc(j.no) + ' ' + pill(j.status) : 'New journal entry', body: `<div class="fg" id="hf">${fDate('Date', 'date', j.date)}${fText('Narration', 'memo', j.memo, { cls: 's3' })}</div><div class="sect">Lines</div>
     <div id="lines"><table class="li"><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div>
-    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>${id ? attSection('journals', id) : ''}${j.createdAt ? auditLine(j) : ''}`,
+    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>${attBlock('journals', j.id)}${j.createdAt ? auditLine(j) : ''}`,
     foot: `${id && j.status === 'posted' ? '<button class="btn dng" id="jvoid">Void</button><button class="btn" id="jpdf">PDF</button>' : ''}<span class="grow"></span>${j.status !== 'void' ? '<button class="btn pri" id="jsave">Post journal</button>' : ''}`,
     mount(m) {
       const totals = () => { const dr = j.lines.reduce((s, l) => s + num(l.dr), 0), cr = j.lines.reduce((s, l) => s + num(l.cr), 0); $('#tots', m).innerHTML = `<div><span>Debits</span><b>${fmt(dr)}</b></div><div><span>Credits</span><b>${fmt(cr)}</b></div><div class="g"><span>Difference</span><span style="color:${Math.abs(dr - cr) < .005 ? 'inherit' : '#b42318'}">${fmt(dr - cr)}</span></div>`; };
@@ -1983,8 +2000,8 @@ function assetForm(id) {
     title: id ? esc(a.name) : 'Register fixed asset', size: 'mid', body: `<div class="fg" id="af">${fText('Asset name', 'name', a.name, { cls: 's2' })}${fText('Tag / serial no.', 'tag', a.tag)}${fAcc('Asset class', 'cat', a.cat, x => x.group === 'ppe')}
     ${fDate('Available for use', 'date', a.date)}${fNum('Cost (AED, excl. recoverable VAT)', 'cost', a.cost)}${fNum('Residual value', 'residual', a.residual)}${fNum('Useful life (months)', 'life', a.life)}
     ${fSel('Cost recorded via', 'source', a.source, [['bill', 'Supplier bill / voucher (already posted)'], ['opening', 'Opening balance (post cost now)']], { cls: 's2' })}${fNum('Opening acc. depreciation (if opening)', 'openAD', a.openAD)}<span></span>
-    ${fDate('Disposal date', 'disposal.date', (a.disposal || {}).date)}<div class="s3 small muted" style="align-self:end">On disposal the cost and accumulated depreciation are removed and the net book value is charged to 4960. Invoice any sale proceeds to account 4960 (standard-rated) so the gain or loss nets there.</div></div>
-    ${sch.length ? `${attSection('assets', id)}<div class="sect">Depreciation schedule</div><div class="tw" style="max-height:260px"><table class="t"><thead><tr><th>Month</th><th class="n">Charge</th><th class="n">Accumulated</th><th class="n">NBV</th></tr></thead><tbody>${(() => { let acc = num(a.openAD); return sch.map(x => { acc = r2(acc + x.v); return `<tr><td>${x.lbl}${x.d > today() ? ' <span class="muted small">(future)</span>' : ''}</td><td class="n">${fmt(x.v)}</td><td class="n">${fmt(acc)}</td><td class="n">${fmt(a.cost - acc)}</td></tr>`; }).join(''); })()}</tbody></table></div>` : ''}`,
+    ${fDate('Disposal date', 'disposal.date', (a.disposal || {}).date)}<div class="s3 small muted" style="align-self:end">On disposal the cost and accumulated depreciation are removed and the net book value is charged to 4960. Invoice any sale proceeds to account 4960 (standard-rated) so the gain or loss nets there.</div></div>${attBlock('assets', a.id)}
+    ${sch.length ? `<div class="sect">Depreciation schedule</div><div class="tw" style="max-height:260px"><table class="t"><thead><tr><th>Month</th><th class="n">Charge</th><th class="n">Accumulated</th><th class="n">NBV</th></tr></thead><tbody>${(() => { let acc = num(a.openAD); return sch.map(x => { acc = r2(acc + x.v); return `<tr><td>${x.lbl}${x.d > today() ? ' <span class="muted small">(future)</span>' : ''}</td><td class="n">${fmt(x.v)}</td><td class="n">${fmt(acc)}</td><td class="n">${fmt(a.cost - acc)}</td></tr>`; }).join(''); })()}</tbody></table></div>` : ''}`,
     foot: `${id ? '<button class="btn dng" id="adel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="as">Save asset</button>`,
     mount(m) {
       $('#as', m).onclick = async () => { const v = vals($('#af', m)); Object.assign(a, v); a.cost = r2(a.cost); if (!a.name || !(a.cost > 0) || !(a.life > 0)) return toast('Name, cost and useful life are required', 1); if (!lockOK(a.date)) return; await Store.save('assets', a); Modal.close(); toast('Asset saved'); };
@@ -2015,7 +2032,7 @@ VIEWS.employees = {
 };
 function employeeForm(id) {
   const e = id ? clone(S.employees[id]) : { id: uid(), status: 'active', joinDate: today() };
-  Modal.open({ title: id ? esc(e.name) : 'Add employee', size: 'narrow', body: `<div class="fg" id="ef" style="grid-template-columns:1fr 1fr">${fText('Full name', 'name', e.name, { cls: 's2' })}${fText('Employee no.', 'empNo', e.empNo)}${fText('Designation', 'designation', e.designation)}${fDate('Joining date', 'joinDate', e.joinDate)}${fNum('Basic monthly salary (AED)', 'basic', e.basic)}${fSel('Status', 'status', e.status, [['active', 'Active'], ['left', 'Left']])}${fDate('Last working day', 'leaveDate', e.leaveDate)}</div>${id ? attSection('employees', id) : ''}`, foot: `${id ? '<button class="btn dng" id="edel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="es">Save</button>`, mount(m) { $('#es', m).onclick = async () => { const v = vals($('#ef', m)); if (!v.name || !v.joinDate) return toast('Name and joining date required', 1); await Store.save('employees', { ...e, ...v }); Modal.close(); }; if ($('#edel', m)) $('#edel', m).onclick = async () => { await Store.remove('employees', e.id); Modal.close(); }; } });
+  Modal.open({ title: id ? esc(e.name) : 'Add employee', size: 'narrow', body: `<div class="fg" id="ef" style="grid-template-columns:1fr 1fr">${fText('Full name', 'name', e.name, { cls: 's2' })}${fText('Employee no.', 'empNo', e.empNo)}${fText('Designation', 'designation', e.designation)}${fDate('Joining date', 'joinDate', e.joinDate)}${fNum('Basic monthly salary (AED)', 'basic', e.basic)}${fSel('Status', 'status', e.status, [['active', 'Active'], ['left', 'Left']])}${fDate('Last working day', 'leaveDate', e.leaveDate)}</div>${attBlock('employees', e.id)}`, foot: `${id ? '<button class="btn dng" id="edel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="es">Save</button>`, mount(m) { $('#es', m).onclick = async () => { const v = vals($('#ef', m)); if (!v.name || !v.joinDate) return toast('Name and joining date required', 1); await Store.save('employees', { ...e, ...v }); Modal.close(); }; if ($('#edel', m)) $('#edel', m).onclick = async () => { await Store.remove('employees', e.id); Modal.close(); }; } });
 }
 
 /* ================= VAT return ================= */
@@ -2053,7 +2070,7 @@ VIEWS.vat = {
     const p = vatPeriods().find(x => x.to === UI.vatP); const R = vatReport(p.from, p.to);
     $('#vdet', el).onclick = () => downloadCSV(`VAT_${p.from}_${p.to}_transactions.csv`, ['Box', 'Date', 'Reference', 'Party', 'Amount AED', 'VAT AED'], R.detail.map(d => [d.box, d.d, d.ref, d.party || '', d.amt, d.vat]));
     $('#vpdf', el).onclick = () => { const C = company(); const rws = []; EMIRATES.forEach((e, i) => rws.push(['1' + 'abcdefg'[i], 'Standard rated supplies in ' + e, fmt(R.b1[e].amt), fmt(R.b1[e].vat), fmt(R.b1[e].adj)])); [['2', 'Tourist refunds', 0, 0], ['3', 'Reverse charge supplies', R.b3.amt, R.b3.vat], ['4', 'Zero rated supplies', R.b4, ''], ['5', 'Exempt supplies', R.b5, ''], ['6', 'Goods imported into the UAE', R.b6.amt, R.b6.vat], ['7', 'Adjustments to imports', 0, 0]].forEach(r => rws.push([r[0], r[1], fmt(r[2]), r[3] === '' ? '' : fmt(r[3]), ''])); rws.push({ c: ['8', 'Totals', fmt(R.b8.amt), fmt(R.b8.vat), ''], b: 1, fill: '#eef2f6' }); rws.push(['9', 'Standard rated expenses', fmt(R.b9.amt), fmt(R.b9.vat), fmt(R.b9.adj)]); rws.push(['10', 'Reverse charge supplies', fmt(R.b10.amt), fmt(R.b10.vat), '']); rws.push({ c: ['11', 'Totals', fmt(R.b11.amt), fmt(R.b11.vat), ''], b: 1, fill: '#eef2f6' }); rws.push(['12', 'Total due tax', '', fmt(R.b12), '']); rws.push(['13', 'Total recoverable tax', '', fmt(R.b13), '']); rws.push({ c: ['14', R.b14 >= 0 ? 'Payable tax' : 'Refundable tax', '', fmt(Math.abs(R.b14)), ''], b: 1, fill: '#e6f6fa' });
-      downloadPDF({ title: 'VAT RETURN WORKING — FORM 201', subtitle: C.name, subtitle2: `TRN ${C.trn || '—'}   •   Tax period ${fdate(p.from)} – ${fdate(p.to)}   •   Due ${fdate(p.due)}`, table: { cols: [{ h: 'Box', w: 7 }, { h: 'Description', w: 48 }, { h: 'Amount (AED)', w: 16, a: 'r' }, { h: 'VAT (AED)', w: 15, a: 'r' }, { h: 'Adjustment', w: 14, a: 'r' }], rows: rws }, notes: [['Note', 'Working paper prepared from the books for submission on EmaraTax. Retain supporting tax invoices and records for the statutory retention period.']], docRef: 'VAT ' + p.label }, `VAT201_${p.to}.pdf`);
+      downloadPDF({ title: 'VAT RETURN WORKING — FORM 201', subtitle: C.name, subtitle2: `TRN ${C.trn || '—'}   •   Tax period ${fdate(p.from)} – ${fdate(p.to)}   •   Due ${fdate(p.due)}`, table: { cols: [{ h: 'Box', w: 7 }, { h: 'Description', w: 48 }, { h: 'Amount (AED)', w: 16, a: 'r' }, { h: 'VAT (AED)', w: 15, a: 'r' }, { h: 'Adjustment', w: 14, a: 'r' }], rows: rws }, notes: [['Note', 'Retain the supporting tax invoices and records for the statutory retention period.']], cg: 'This is a computer-generated working paper prepared from the books of account for submission on EmaraTax and does not require a signature. The return is declared and submitted electronically on EmaraTax by the authorised signatory.', docRef: 'VAT ' + p.label }, `VAT201_${p.to}.pdf`);
     };
     const f = $('#vfile', el); if (f) f.onclick = async () => {
       if (p.to >= today()) return toast('The period has not ended yet', 1);
@@ -2102,7 +2119,7 @@ VIEWS.ct = {
     el.addEventListener('change', e => { const k = e.target.dataset.ct; if (k) { (UI.ctAdj[UI.ctFy] = UI.ctAdj[UI.ctFy] || {})[k] = e.target.value === '' ? '' : num(e.target.value); render(); } });
     const fy = (() => { let f = fyRange(today()); while (f.to !== UI.ctFy && f.from > '2000') f = fyRange(addDays(f.from, -1)); return f; })(); const c = ctCompute(fy, UI.ctAdj[fy.to] || {});
     const p = $('#ctpost', el); if (p) p.onclick = async () => { const d = fy.to; if (!lockOK(d)) return; const v = r2(c.tax - c.booked); await Store.save('journals', { id: uid(), status: 'posted', no: nextNo('journals', 'JV', d), date: d, memo: 'Corporate Tax provision ' + fy.label, auto: 'ct', lines: v > 0 ? [{ acc: '7000', dr: v, desc: 'CT expense' }, { acc: '2120', cr: v, desc: 'CT payable' }] : [{ acc: '2120', dr: -v, desc: 'CT payable' }, { acc: '7000', cr: -v, desc: 'CT expense' }] }); toast('CT provision posted'); };
-    $('#ctpdf', el).onclick = () => { const C = company(); downloadPDF({ title: 'CORPORATE TAX COMPUTATION', subtitle: C.name, subtitle2: `${fy.label}: ${fdate(fy.from)} – ${fdate(fy.to)}   •   CT TRN ${C.ctTrn || '—'}`, table: { cols: [{ h: 'Item', w: 75 }, { h: 'AED', w: 25, a: 'r' }], rows: [['Revenue', fmt(c.revenue)], ['Accounting profit before tax', fmt(c.pbt)], ['Add: non-deductible expenses', fmt(c.nondeduct)], ['Add: other adjustments', fmt(num((UI.ctAdj[fy.to] || {}).add))], ['Less: exempt income / reliefs / losses', '(' + fmt(num((UI.ctAdj[fy.to] || {}).less)) + ')'], { c: ['Taxable income before relief', fmt(c.ti)], b: 1 }, ['Small Business Relief', c.sbrEligible ? 'Applied – nil' : 'Not applied'], { c: ['Taxable income', fmt(c.taxable)], b: 1 }, { c: ['Corporate Tax (0% to 375,000; 9% above)', fmt(c.tax)], b: 1, fill: '#e6f6fa' }] }, notes: [['Basis', 'Federal Decree-Law No. 47 of 2022 on the Taxation of Corporations and Businesses; Ministerial Decision 73 of 2023 (Small Business Relief) as extended.']] }, `CT_${fy.label.replace(/\W+/g, '_')}.pdf`); };
+    $('#ctpdf', el).onclick = () => { const C = company(); downloadPDF({ title: 'CORPORATE TAX COMPUTATION', subtitle: C.name, subtitle2: `${fy.label}: ${fdate(fy.from)} – ${fdate(fy.to)}   •   CT TRN ${C.ctTrn || '—'}`, table: { cols: [{ h: 'Item', w: 75 }, { h: 'AED', w: 25, a: 'r' }], rows: [['Revenue', fmt(c.revenue)], ['Accounting profit before tax', fmt(c.pbt)], ['Add: non-deductible expenses', fmt(c.nondeduct)], ['Add: other adjustments', fmt(num((UI.ctAdj[fy.to] || {}).add))], ['Less: exempt income / reliefs / losses', '(' + fmt(num((UI.ctAdj[fy.to] || {}).less)) + ')'], { c: ['Taxable income before relief', fmt(c.ti)], b: 1 }, ['Small Business Relief', c.sbrEligible ? 'Applied – nil' : 'Not applied'], { c: ['Taxable income', fmt(c.taxable)], b: 1 }, { c: ['Corporate Tax (0% to 375,000; 9% above)', fmt(c.tax)], b: 1, fill: '#e6f6fa' }] }, notes: [['Basis', 'Federal Decree-Law No. 47 of 2022 on the Taxation of Corporations and Businesses; Ministerial Decision 73 of 2023 (Small Business Relief) as extended.']], cg: 'This is a computer-generated tax computation prepared from the books of account and does not require a signature. Positions should be reviewed by the registered tax agent before the return is submitted on EmaraTax.', docRef: 'CT ' + fy.label }, `CT_${fy.label.replace(/\W+/g, '_')}.pdf`); };
   }
 };
 
@@ -2139,7 +2156,7 @@ VIEWS.reports = {
     });
     const R = UI._lastRep;
     $('#rcsv', el).onclick = () => downloadCSV(R.file + '.csv', R.cols.map(c => c.h), R.rows.map(r => (Array.isArray(r) ? r : r.c)));
-    $('#rpdf', el).onclick = () => { const C = company(); downloadPDF({ title: R.title.toUpperCase(), subtitle: C.name, subtitle2: R.sub, table: { cols: R.cols.map(c => ({ ...c, w: c.w || 15 })), rows: R.rows.map(r => { const o = Array.isArray(r) ? { c: r } : r; return { c: o.c, b: o.b || /tot|hd2/.test(o.cls || ''), fill: /hd2/.test(o.cls || '') ? '#e6f6fa' : /tot/.test(o.cls || '') ? '#eef2f6' : null, ind: o.ind }; }), size: R.cols.length > 6 ? 7 : 8 }, notes: R.note ? [['Notes', R.note.replace(/<[^>]+>/g, '')]] : [], docRef: R.title }, R.file + '.pdf'); };
+    $('#rpdf', el).onclick = () => { const C = company(); downloadPDF({ title: R.title.toUpperCase(), subtitle: C.name, subtitle2: R.sub, table: { cols: R.cols.map(c => ({ ...c, w: c.w || 15 })), rows: R.rows.map(r => { const o = Array.isArray(r) ? { c: r } : r; return { c: o.c, b: o.b || /tot|hd2/.test(o.cls || ''), fill: /hd2/.test(o.cls || '') ? '#e6f6fa' : /tot/.test(o.cls || '') ? '#eef2f6' : null, ind: o.ind }; }), size: R.cols.length > 6 ? 7 : 8 }, notes: R.note ? [['Notes', R.note.replace(/<[^>]+>/g, '')]] : [], cg: 'This is a computer-generated report prepared from the books of account under the IFRS for SMEs Accounting Standard and does not require a signature. It is unaudited management information unless issued with an auditor\'s report.', docRef: R.title }, R.file + '.pdf'); };
   }
 };
 function buildReport(rep, F) {
@@ -2523,7 +2540,8 @@ function quoteModel(q) {
     totals: [['Subtotal excluding VAT', 'AED ' + fmt(c.taxable)], ['VAT @ 5%', 'AED ' + fmt(c.vat)], [`Estimated total – ${c.months} month(s)`, 'AED ' + fmt(c.total), 1], ...(c.dep ? [['Refundable security deposit (no VAT)', 'AED ' + fmt(c.dep)]] : [])],
     tables: undefined,
     notes: [['At a glance', `Storage about AED ${fmt(c.monthlyNet)} per month + VAT.   Payable at move-in: AED ${fmt(c.moveIn)} (${st.cycle === 'Daily' ? '' : 'first ' + c.unit + ' of storage, '}${c.exIn ? 'inbound charges, ' : ''}VAT${c.dep ? ' and refundable deposit' : ''}).${st.cycle === 'Daily' ? ' Daily storage is billed at outbound.' : ''}`], ['Notes', q.notes], ['Terms & conditions', QDEF().terms]],
-    sign: ['For ' + C.short, 'Accepted by customer – name, signature & date'], foot: 'This quotation is not a tax invoice. Prices are in UAE Dirhams.', docRef: q.no
+    boxes: [{ title: 'Customer acceptance', text: `I/We accept quotation ${q.no} and agree to the storage terms and conditions stated above.`, fields: ['Name', 'Company / designation', 'Signature & company stamp', 'Date'] }],
+    cg: `This quotation is computer-generated and valid without signature on behalf of ${C.short}. It is not a tax invoice. Prices are in UAE Dirhams and exclude VAT unless stated; the offer is valid until ${fdate(q.validUntil)}.`, docRef: q.no
   };
 }
 
@@ -2567,7 +2585,7 @@ function quoteForm(id, preset) {
       ${fNum('Expected duration (months)', 'st.months', q.st.months)}${fDate('Expected move-in', 'st.start', q.st.start)}${fNum('Security deposit (AED)', 'dep', q.dep)}${fNum('Insurance % of value / month', 'insPct', q.insPct, { a: { placeholder: 'optional' } })}
       ${fNum('Special discount (AED)', 'disc', q.disc)}${fChk('No long-stay discount', 'noTier', q.noTier)}${fDate('Valid until', 'validUntil', q.validUntil)}${fDate('Follow up on', 'followUp', q.followUp)}</div>
     <div class="sect">Handling & other charges</div><div id="qx"><table class="li"><thead><tr><th>Service</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>When</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" id="qxadd" style="margin-top:6px">${ico('plus')}Add charge</button></div>
-    <div class="row" style="align-items:flex-start;margin-top:14px"><div class="grow">${fArea('Notes printed on quotation', 'notes', q.notes, { rows: 3 })}</div><div class="totals" id="qtot" style="min-width:330px"></div></div>`,
+    <div class="row" style="align-items:flex-start;margin-top:14px"><div class="grow">${fArea('Notes printed on quotation', 'notes', q.notes, { rows: 3 })}${q.id ? attBlock('quotes', q.id) : ''}</div><div class="totals" id="qtot" style="min-width:330px"></div></div>`,
     foot: `${id && q.status === 'draft' ? '<button class="btn dng" id="qdel">Delete</button>' : ''}<span class="grow"></span><button class="btn" id="qpv">Preview</button>${locked ? '' : '<button class="btn pri" id="qsave">Save quotation</button>'}`,
     mount(m) {
       if (locked) $$('input,select,textarea', m).forEach(e => e.disabled = true);
@@ -2799,6 +2817,28 @@ function missingVatDocs(from) {
   const vatLine = l => ['SR', 'RC', 'IM'].includes(l.vat) && num(l.vatAmt) > 0;
   return [...list('bills', b => b.status === 'posted' && !b.opening && b.date >= from && (b.lines || []).some(vatLine) && !attCount(b)).map(b => ({ col: 'bills', r: b })),
   ...list('money', m => m.status === 'posted' && m.dir === 'out' && m.date >= from && (m.lines || []).some(vatLine) && !attCount(m)).map(m => ({ col: 'money', r: m }))];
+}
+
+/* Attach on the form itself: before the record exists, files are held and uploaded right after the first save */
+const ATTP = {};
+function attBlock(col, id) {
+  if (id && S[col][id]) return attSection(col, id);
+  return `<div class="sect">Supporting documents</div><div data-attp="${col}|${id}"></div>`;
+}
+function mountAttPending(el) {
+  const [col, id] = el.dataset.attp.split('|'); const L = ATTP[id] = ATTP[id] || { col, files: [] };
+  const draw = () => {
+    el.innerHTML = `<div class="attz" style="border:1.5px dashed var(--line);border-radius:10px;padding:10px 12px;background:#fafbfd">
+      ${L.files.length ? `<table class="t" style="margin-bottom:8px"><tbody>${L.files.map((f, i) => `<tr><td style="width:28px">${attIcon(f.type)}</td><td><b>${esc(f.name)}</b> <span class="pill">uploads on save</span></td><td class="muted small">${attSize(f.size)}</td><td style="width:40px;text-align:right"><button class="btn sm ghost dng" data-prm="${i}">✕</button></td></tr>`).join('')}</tbody></table>` : ''}
+      <div class="row" style="gap:10px"><button class="btn sm" data-add type="button">📎 Attach files</button><span class="muted small">or drop files here · PDF, photos, Excel, Word · up to 8 MB each${ATT_HINT[col] ? ' · e.g. ' + ATT_HINT[col] : ''}</span>
+      <input type="file" multiple hidden accept="image/*,application/pdf,.pdf,.xlsx,.xls,.csv,.docx,.doc,.eml,.msg,.txt"></div></div>`;
+    const inp = $('input[type=file]', el); $('[data-add]', el).onclick = () => inp.click();
+    inp.onchange = () => { L.files.push(...inp.files); inp.value = ''; draw(); };
+    const z = $('.attz', el); z.ondragover = e => { e.preventDefault(); z.style.borderColor = 'var(--cyan)'; }; z.ondragleave = () => z.style.borderColor = '';
+    z.ondrop = e => { e.preventDefault(); L.files.push(...e.dataTransfer.files); draw(); };
+    $$('[data-prm]', el).forEach(b => b.onclick = () => { L.files.splice(+b.dataset.prm, 1); draw(); });
+  };
+  draw();
 }
 
 
