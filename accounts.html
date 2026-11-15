@@ -1105,6 +1105,7 @@ const Modal = {
     m.classList.add('on'); m.onmousedown = e => { if (e.target === m) Modal.close(); };
     m.querySelector('[data-x]').onclick = () => Modal.close();
     if (mount) mount(m.querySelector('.dw'));
+    $$('[data-att]', m).forEach(mountAtt);
   },
   close() { const m = $('#modal'); m.classList.remove('on'); m.innerHTML = ''; if (_pendingRender) render(); },
   get isOpen() { return $('#modal').classList.contains('on'); }
@@ -1288,6 +1289,7 @@ VIEWS.dashboard = {
     if (late) alerts.push(['warn', `${late} tax invoice(s) issued more than 14 days after the date of supply`, 'Article 67 of the VAT Law requires a tax invoice within 14 days of the date of supply.']);
     const noTrn = list('customers', c => c.vatReg && !c.trn).length; if (noTrn) alerts.push(['warn', `${noTrn} VAT-registered customer(s) without a TRN`, 'Record the recipient TRN so it prints on the tax invoice.']);
     const drafts = list('invoices', i => i.status === 'draft').length; if (drafts) alerts.push(['info', `${drafts} draft invoice(s) awaiting issue`, 'Drafts are not posted to the ledger or VAT until issued.']);
+    const nodoc = missingVatDocs(fy.from); if (nodoc.length) alerts.push(['warn', `${nodoc.length} purchase(s) claim input VAT with no supplier tax invoice attached`, 'Input tax can only be recovered with the supplier\'s tax invoice on file (Art. 55, VAT Law). Open Supplier Bills → filter "Missing tax invoice".']);
     const qfu = list('quotes', q => ['draft', 'sent'].includes(qStatus(q)) && q.followUp && q.followUp <= T); if (qfu.length) alerts.push(['info', `${qfu.length} quotation follow-up(s) due`, qfu.slice(0, 3).map(q => q.no + ' · ' + qName(q)).join(', ') + ' — see Quotations.']);
     const qacc = list('quotes', q => qStatus(q) === 'accepted'); if (qacc.length) alerts.push(['good', `${qacc.length} accepted quotation(s) awaiting move-in`, qacc.slice(0, 3).map(q => qName(q) + ((q.st || {}).start ? ' · ' + fdate(q.st.start) : '')).join(', ')]);
     if (Store.quotesErr) alerts.push(['warn', 'Quotations need one more Firestore rule', 'Add the "quotes" rule from Company & Settings → Firestore rules, then reload.']);
@@ -1361,7 +1363,7 @@ function customerView(id) {
   Modal.open({
     title: esc(c.name), body: `<div class="grid g3"><div class="card kpi"><div class="l">Balance</div><div class="v"><small>AED</small>${fmt(partyBal('1100', id))}</div></div><div class="card kpi"><div class="l">Invoiced (all time)</div><div class="v"><small>AED</small>${fmt(invs.filter(i => i.status === 'issued').reduce((s, i) => s + i.totalAed, 0))}</div></div><div class="card kpi"><div class="l">Credit limit</div><div class="v"><small>AED</small>${fmt(c.creditLimit || 0)}</div></div></div>
     <div class="kv" style="margin:14px 0"><span>TRN</span><b>${esc(c.trn || 'Not registered')}</b><span>Address</span><div>${esc(c.address || '')} ${esc(c.emirate || '')}</div><span>Contact</span><div>${esc([c.contact, c.phone, c.email].filter(Boolean).join(' · '))}</div></div>
-    <div class="sect">Statement of account</div><div class="row">${fDate('From', 'from', fyRange(T).from)}${fDate('To', 'to', T)}<button class="btn" id="stv" style="align-self:flex-end">Preview</button><button class="btn pri" id="stp" style="align-self:flex-end">${ico('pdf')}Download PDF</button></div>
+    ${attSection('customers', id)}<div class="sect">Statement of account</div><div class="row">${fDate('From', 'from', fyRange(T).from)}${fDate('To', 'to', T)}<button class="btn" id="stv" style="align-self:flex-end">Preview</button><button class="btn pri" id="stp" style="align-self:flex-end">${ico('pdf')}Download PDF</button></div>
     <div class="sect">Invoices</div><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Due</th><th class="n">Total</th><th class="n">Balance</th><th></th></tr></thead><tbody>${invs.map(i => `<tr class="click" data-inv="${i.id}"><td>${esc(i.no || 'Draft')}</td><td>${fdate(i.date)}</td><td>${fdate(i.due)}</td><td class="n">${fmt(i.totalAed)}</td><td class="n">${fmt(invBal(i))}</td><td>${pill(invStatus(i))}</td></tr>`).join('') || '<tr><td colspan=6 class="muted">No invoices</td></tr>'}</tbody></table><div id="stprev" style="margin-top:12px"></div>`,
     foot: `<button class="btn" onclick="customerForm('${id}')">Edit</button><span class="grow"></span><button class="btn" onclick="receiptForm(null,'${id}')">Receive payment</button><button class="btn acc" onclick="invoiceForm(null,'${id}')">New invoice</button>`,
     mount(m) {
@@ -1424,7 +1426,7 @@ VIEWS.invoices = {
     return `<div class="toolbar">${searchBox('invoices', 'Search number, customer, PO…')}<select class="search" style="min-width:150px" onchange="UI.filter.inv=this.value;render()">${opts([['all', 'All'], ['draft', 'Drafts'], ['unpaid', 'Unpaid'], ['overdue', 'Overdue'], ['paid', 'Paid']], f)}</select><span class="grow"></span>
       <button class="btn" onclick="exportInvoices()">Export CSV</button><button class="btn" onclick="go('billing')">${ico('box')}Billing run</button><button class="btn acc" onclick="invoiceForm()">${ico('plus')}New tax invoice</button></div>
     <div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>Invoice no.</th><th>Date</th><th>Customer</th><th>Due</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Total (AED)</th><th class="n">Balance</th><th>Status</th></tr></thead><tbody>
-      ${rows.map(i => `<tr class="click" onclick="invoiceView('${i.id}')"><td><b>${esc(i.no || 'Draft')}</b>${i.opening ? ' <span class="pill">opening</span>' : ''}${i.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}</td><td>${fdate(i.date)}</td><td>${esc(custName(i.custId))}</td><td>${fdate(i.due)}</td><td class="n">${fmt(i.netAed)}</td><td class="n">${fmt(i.vatAed)}</td><td class="n b">${fmt(i.totalAed)}</td><td class="n">${i.status === 'issued' ? fmt(invBal(i)) : ''}</td><td>${pill(invStatus(i))}</td></tr>`).join('')}
+      ${rows.map(i => `<tr class="click" onclick="invoiceView('${i.id}')"><td><b>${esc(i.no || 'Draft')}</b>${i.opening ? ' <span class="pill">opening</span>' : ''}${i.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}${clip(i)}</td><td>${fdate(i.date)}</td><td>${esc(custName(i.custId))}</td><td>${fdate(i.due)}</td><td class="n">${fmt(i.netAed)}</td><td class="n">${fmt(i.vatAed)}</td><td class="n b">${fmt(i.totalAed)}</td><td class="n">${i.status === 'issued' ? fmt(invBal(i)) : ''}</td><td>${pill(invStatus(i))}</td></tr>`).join('')}
       <tr class="tot"><td colspan="6">${rows.length} invoices</td><td class="n">${fmt(tot)}</td><td class="n">${fmt(bal)}</td><td></td></tr></tbody></table></div>` : emptyState('No invoices to show', 'Tax invoices are numbered sequentially when issued. Drafts can be edited freely.', `<button class="btn acc" onclick="invoiceForm()">${ico('plus')}New tax invoice</button>`)}</div>`;
   }
 };
@@ -1499,7 +1501,7 @@ function invoiceView(id) {
     title: `${i.no ? 'Tax invoice ' + esc(i.no) : 'Draft invoice'} ${pill(st)}`, body: `
       ${i.status === 'issued' ? `<div class="grid g3" style="margin-bottom:14px"><div class="card kpi"><div class="l">Total</div><div class="v"><small>AED</small>${fmt(i.totalAed)}</div></div><div class="card kpi"><div class="l">Received / credited</div><div class="v"><small>AED</small>${fmt(i.totalAed - bal)}</div></div><div class="card kpi"><div class="l">Balance</div><div class="v"><small>AED</small>${fmt(bal)}</div></div></div>` : ''}
       ${pays.length ? `<table class="t" style="margin-bottom:14px"><thead><tr><th>Date</th><th>Ref</th><th>Type</th><th class="n">Amount</th></tr></thead><tbody>${pays.map(p => `<tr><td>${p[0]}</td><td>${esc(p[1])}</td><td>${p[2]}</td><td class="n">${fmt(p[3])}</td></tr>`).join('')}</tbody></table>` : ''}
-      ${previewDoc(invoiceModel(i))}${auditLine(i)}`,
+      ${attSection('invoices', id)}<div style="height:12px"></div>${previewDoc(invoiceModel(i))}${auditLine(i)}`,
     foot: i.status === 'draft' ? `<button class="btn" onclick="invoiceForm('${id}')">Edit</button><span class="grow"></span><button class="btn" id="ipdf">${ico('pdf')}PDF</button><button class="btn pri" id="iiss">Issue invoice</button>`
       : `${i.src === 'wms' ? '<span class="pill info" title="Issued in the warehouse system">From WMS</span>' : '<button class="btn" id="idup">Duplicate</button>'}<button class="btn" id="ixml" title="UBL 2.1 / PINT AE draft for ASP onboarding">E-invoice XML</button>${canWO ? `<button class="btn dng" id="iwo">Write off</button>` : ''}<span class="grow"></span>${bal > 0 ? `<button class="btn" id="icn">Credit note</button><button class="btn" id="ircv">Receive payment</button>` : ''}<button class="btn pri" id="ipdf">${ico('pdf')}Download PDF</button>`,
     mount(m) {
@@ -1647,7 +1649,7 @@ function creditNoteForm(id, invId) {
 }
 function creditNoteView(id) {
   const c = S.creditnotes[id];
-  Modal.open({ title: `${esc(c.no || 'Draft credit note')} ${pill(c.status)}`, body: previewDoc(creditNoteModel(c)) + auditLine(c), foot: `${c.status === 'draft' ? `<button class="btn" onclick="creditNoteForm('${id}')">Edit</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(creditNoteModel(c), (c.no || 'CN-DRAFT') + '.pdf'); } });
+  Modal.open({ title: `${esc(c.no || 'Draft credit note')} ${pill(c.status)}`, body: attSection('creditnotes', id) + '<div style="height:12px"></div>' + previewDoc(creditNoteModel(c)) + auditLine(c), foot: `${c.status === 'draft' ? `<button class="btn" onclick="creditNoteForm('${id}')">Edit</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(creditNoteModel(c), (c.no || 'CN-DRAFT') + '.pdf'); } });
 }
 
 /* ================= Receipts & PDCs ================= */
@@ -1663,7 +1665,7 @@ VIEWS.receipts = {
     return `${dups.length ? `<div class="alert warn" style="margin-bottom:12px"><span class="ic">!</span><div><b>${dups.length} possible duplicate receipt(s)</b>${dups.map(([r, d]) => `${esc(r.no)} (${esc(custName(r.custId))}, AED ${fmt(r.amount)}, ${fdate(r.date)}) matches warehouse receipt ${d.map(x => esc(x.no) + ' · ' + fdate(x.date)).join(', ')}`).join('<br>')}<br><span class="small">If it is the same payment, open the accounts receipt → Edit / re-apply → Void receipt.</span></div></div>` : ''}<div class="tabs"><a href="#receipts" class="${tab === 'all' ? 'on' : ''}">All receipts</a><a href="#receipts-pdc" class="${tab === 'pdc' ? 'on' : ''}">PDC register (cheques in hand)</a></div>
     <div class="toolbar">${searchBox('receipts', 'Search receipt, customer, cheque…')}<span class="grow"></span><button class="btn acc" onclick="receiptForm()">${ico('plus')}Receive payment</button></div>
     <div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>Receipt</th><th>Date</th><th>Customer</th><th>Method</th>${tab === 'pdc' ? '<th>Cheque no.</th><th>Cheque date</th><th>Bank</th>' : '<th>Deposited to</th>'}<th class="n">Amount</th><th class="n">Unapplied</th><th>Status</th>${tab === 'pdc' ? '<th></th>' : ''}</tr></thead><tbody>
-    ${rows.map(r => `<tr class="click" data-r="${r.id}"><td><b>${esc(r.no)}</b>${r.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}${dupReceipts(r).length ? ' <span class="pill warn" title="Possible duplicate">dup?</span>' : ''}</td><td>${fdate(r.date)}</td><td>${esc(custName(r.custId))}</td><td>${esc(r.method.toUpperCase())}</td>${tab === 'pdc' ? `<td>${esc(r.chqNo || '')}</td><td>${fdate(r.chqDate)}${r.pdcStatus === 'pending' && r.chqDate <= T ? ' <span class="pill warn">due</span>' : ''}</td><td>${esc(r.chqBank || '')}</td>` : `<td>${esc(ACC(r.acc).name)}</td>`}<td class="n b">${fmt(r.amount)}</td><td class="n">${r.status === 'void' ? '–' : fmt(rcptUnalloc(r), '–')}</td><td>${r.status === 'void' ? pill('void') : r.method === 'pdc' ? pill(r.pdcStatus) : pill('posted')}</td>${tab === 'pdc' ? `<td style="white-space:nowrap">${r.pdcStatus === 'pending' ? `<button class="btn sm" data-clr="${r.id}">Deposit / clear</button> <button class="btn sm dng" data-bnc="${r.id}">Returned</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : emptyState('No receipts', 'Record customer payments by bank transfer, cash, cheque or post-dated cheque and apply them to invoices.')}</div>`;
+    ${rows.map(r => `<tr class="click" data-r="${r.id}"><td><b>${esc(r.no)}</b>${r.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}${dupReceipts(r).length ? ' <span class="pill warn" title="Possible duplicate">dup?</span>' : ''}${clip(r)}</td><td>${fdate(r.date)}</td><td>${esc(custName(r.custId))}</td><td>${esc(r.method.toUpperCase())}</td>${tab === 'pdc' ? `<td>${esc(r.chqNo || '')}</td><td>${fdate(r.chqDate)}${r.pdcStatus === 'pending' && r.chqDate <= T ? ' <span class="pill warn">due</span>' : ''}</td><td>${esc(r.chqBank || '')}</td>` : `<td>${esc(ACC(r.acc).name)}</td>`}<td class="n b">${fmt(r.amount)}</td><td class="n">${r.status === 'void' ? '–' : fmt(rcptUnalloc(r), '–')}</td><td>${r.status === 'void' ? pill('void') : r.method === 'pdc' ? pill(r.pdcStatus) : pill('posted')}</td>${tab === 'pdc' ? `<td style="white-space:nowrap">${r.pdcStatus === 'pending' ? `<button class="btn sm" data-clr="${r.id}">Deposit / clear</button> <button class="btn sm dng" data-bnc="${r.id}">Returned</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : emptyState('No receipts', 'Record customer payments by bank transfer, cash, cheque or post-dated cheque and apply them to invoices.')}</div>`;
   },
   mount(el) {
     el.addEventListener('click', async e => {
@@ -1723,7 +1725,7 @@ function dupReceipts(r) {
 }
 function receiptView(id) {
   const r = S.receipts[id];
-  Modal.open({ title: `Receipt ${esc(r.no)} ${r.status === 'void' ? pill('void') : ''}`, body: previewDoc(receiptModel(r)) + auditLine(r), foot: `${r.status !== 'void' ? `<button class="btn" onclick="receiptForm('${id}')">Edit / re-apply</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(receiptModel(r), r.no + '.pdf'); } });
+  Modal.open({ title: `Receipt ${esc(r.no)} ${r.status === 'void' ? pill('void') : ''}`, body: attSection('receipts', id) + '<div style="height:12px"></div>' + previewDoc(receiptModel(r)) + auditLine(r), foot: `${r.status !== 'void' ? `<button class="btn" onclick="receiptForm('${id}')">Edit / re-apply</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(receiptModel(r), r.no + '.pdf'); } });
 }
 
 /* ================= Suppliers ================= */
@@ -1740,7 +1742,7 @@ function vendorForm(id) {
   Modal.open({
     title: id ? 'Edit supplier' : 'New supplier', size: 'mid', body: `<div class="fg" id="vf">${fText('Supplier name', 'name', v.name, { cls: 's3' })}${fText('TRN', 'trn', v.trn, { a: { maxlength: 15 } })}${fArea('Address', 'address', v.address, { cls: 's2' })}${fText('Country', 'country', v.country)}${fNum('Credit days', 'terms', v.terms)}
     ${fText('Phone', 'phone', v.phone)}${fText('Email', 'email', v.email)}${fText('IBAN', 'iban', v.iban, { cls: 's2' })}${fAcc('Default account', 'acc', v.acc, null, { cls: 's2' })}${fSel('Default VAT code', 'vat', v.vat, Object.entries(PURCH_VAT).map(([k, x]) => [k, x.n]), { cls: 's2' })}${fChk('Inactive', 'inactive', v.inactive)}</div>
-    <div class="small muted" style="margin-top:10px">Use <b>RC</b> for services bought from suppliers outside the UAE (reverse charge – no self-invoice required from 1 Jan 2026; keep the supplier invoice) and <b>IM</b> for goods imported through UAE customs.</div>`,
+    <div class="small muted" style="margin-top:10px">Use <b>RC</b> for services bought from suppliers outside the UAE (reverse charge – no self-invoice required from 1 Jan 2026; keep the supplier invoice) and <b>IM</b> for goods imported through UAE customs.</div>${id ? attSection('vendors', id) : ''}`,
     foot: `<span class="grow"></span><button class="btn" onclick="Modal.close()">Cancel</button><button class="btn pri" id="vs">Save supplier</button>`,
     mount(m) { $('#vs', m).onclick = async () => { const x = vals($('#vf', m)); if (!x.name) return toast('Name is required', 1); if (x.trn && !/^\d{15}$/.test(x.trn)) return toast('TRN must be 15 digits', 1); await Store.save('vendors', { ...v, ...x }); Modal.close(); toast('Supplier saved'); }; }
   });
@@ -1757,10 +1759,11 @@ VIEWS.bills = {
   title: 'Supplier Bills',
   render() {
     const f = UI.filter.bill || 'all';
-    const rows = list('bills').filter(b => (f === 'all' || billStatus(b) === f || (f === 'unpaid' && ['open', 'part-paid', 'overdue'].includes(billStatus(b)))) && match('bills', b.no, b.supNo, vendName(b.vendId))).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
-    return `<div class="toolbar">${searchBox('bills', 'Search supplier, bill no…')}<select class="search" style="min-width:150px" onchange="UI.filter.bill=this.value;render()">${opts([['all', 'All'], ['draft', 'Drafts'], ['unpaid', 'Unpaid'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['credit', 'Credit notes']], f)}</select><span class="grow"></span><button class="btn" onclick="billForm(null,'credit')">Supplier credit note</button><button class="btn acc" onclick="billForm()">${ico('plus')}Enter bill</button></div>
+    const nodocIds = new Set(missingVatDocs('0000').filter(x => x.col === 'bills').map(x => x.r.id));
+    const rows = list('bills').filter(b => (f === 'all' || billStatus(b) === f || (f === 'nodoc' && nodocIds.has(b.id)) || (f === 'unpaid' && ['open', 'part-paid', 'overdue'].includes(billStatus(b)))) && match('bills', b.no, b.supNo, vendName(b.vendId))).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
+    return `<div class="toolbar">${searchBox('bills', 'Search supplier, bill no…')}<select class="search" style="min-width:150px" onchange="UI.filter.bill=this.value;render()">${opts([['all', 'All'], ['draft', 'Drafts'], ['unpaid', 'Unpaid'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['credit', 'Credit notes'], ['nodoc', 'Missing tax invoice 📎']], f)}</select><span class="grow"></span><button class="btn" onclick="billForm(null,'credit')">Supplier credit note</button><button class="btn acc" onclick="billForm()">${ico('plus')}Enter bill</button></div>
     <div class="card">${rows.length ? `<div class="tw"><table class="t"><thead><tr><th>Ref</th><th>Supplier inv. no.</th><th>Date</th><th>Supplier</th><th>Due</th><th class="n">Net</th><th class="n">VAT</th><th class="n">Payable</th><th class="n">Balance</th><th>Status</th></tr></thead><tbody>
-    ${rows.map(b => `<tr class="click" onclick="billForm('${b.id}')"><td><b>${esc(b.no || 'Draft')}</b></td><td>${esc(b.supNo || '')}</td><td>${fdate(b.date)}</td><td>${esc(vendName(b.vendId))}</td><td>${fdate(b.due)}</td><td class="n">${fmt(b.net)}</td><td class="n">${fmt(b.vat)}</td><td class="n b">${b.kind === 'credit' ? '(' + fmt(b.total) + ')' : fmt(b.total)}</td><td class="n">${b.status === 'posted' && b.kind !== 'credit' ? fmt(billBal(b)) : ''}</td><td>${pill(billStatus(b))}</td></tr>`).join('')}</tbody></table></div>` : emptyState('No supplier bills', 'Enter supplier tax invoices to track payables and recover input VAT.', `<button class="btn acc" onclick="billForm()">${ico('plus')}Enter bill</button>`)}</div>`;
+    ${rows.map(b => `<tr class="click" onclick="billForm('${b.id}')"><td><b>${esc(b.no || 'Draft')}</b>${clip(b)}</td><td>${esc(b.supNo || '')}</td><td>${fdate(b.date)}</td><td>${esc(vendName(b.vendId))}</td><td>${fdate(b.due)}</td><td class="n">${fmt(b.net)}</td><td class="n">${fmt(b.vat)}</td><td class="n b">${b.kind === 'credit' ? '(' + fmt(b.total) + ')' : fmt(b.total)}</td><td class="n">${b.status === 'posted' && b.kind !== 'credit' ? fmt(billBal(b)) : ''}</td><td>${pill(billStatus(b))}</td></tr>`).join('')}</tbody></table></div>` : emptyState('No supplier bills', 'Enter supplier tax invoices to track payables and recover input VAT.', `<button class="btn acc" onclick="billForm()">${ico('plus')}Enter bill</button>`)}</div>`;
   }
 };
 function billForm(id, kind) {
@@ -1771,6 +1774,7 @@ function billForm(id, kind) {
     <fieldset ${locked ? 'disabled' : ''} style="border:0;padding:0;margin:0"><div class="fg" id="hf"><label class="f s2">Supplier<select data-k="vendId"><option value="">Select supplier…</option>${vendOpts(b.vendId)}</select></label>${fText(b.kind === 'credit' ? 'Supplier credit note no.' : 'Supplier invoice no.', 'supNo', b.supNo)}${fDate('Invoice date', 'date', b.date)}
     ${fDate('Due date', 'due', b.due)}${b.kind === 'credit' ? `<label class="f s2">Against bill<select data-k="billId"><option value="">—</option>${opts(list('bills', x => x.kind !== 'credit' && x.status === 'posted').map(x => [x.id, `${x.no} · ${x.supNo || ''} · ${vendName(x.vendId)}`]), b.billId)}</select></label>` : ''}${fChk('Opening balance (pre go-live)', 'opening', b.opening)}${fText('Memo', 'memo', b.memo, { cls: 's2' })}</div>
     <div class="sect">Expense / asset lines</div><div id="lines"><table class="li"><thead><tr><th>Account</th><th>Description</th><th>Net (AED)</th><th>VAT</th><th>VAT amt</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div></fieldset>
+    ${id ? attSection('bills', b.id) : '<div class="sect">Supporting documents</div><div class="muted small">Save the bill first, then attach the supplier tax invoice.</div>'}
     <div class="row" style="margin-top:14px;align-items:flex-start"><div class="grow small muted">VAT codes: SR recoverable · NR blocked (e.g. entertainment, Art. 53 Exec. Reg.) · RC reverse charge imported services · IM import of goods · ZR/EX/OS no VAT. Capital items (racking, forklifts) go to the 15xx asset accounts — then add them to the Fixed Asset register.</div><div class="totals" id="tots"></div></div>${b.createdAt ? auditLine(b) : ''}`,
     foot: locked ? `${b.status === 'posted' ? '<button class="btn dng" id="bvoid">Void</button>' : ''}<span class="grow"></span>${b.status === 'posted' && b.kind !== 'credit' && billBal(b) > 0 ? `<button class="btn pri" onclick="paymentForm(null,'${b.vendId}','${b.id}')">Pay bill</button>` : ''}`
       : `${id ? '<button class="btn dng" id="bdel">Delete draft</button>' : ''}<span class="grow"></span><button class="btn" id="bsave">Save draft</button><button class="btn pri" id="bpost">Post bill</button>`,
@@ -1780,12 +1784,12 @@ function billForm(id, kind) {
       bindLines($('#lines', m), b, 'purch', totals);
       hf.addEventListener('change', e => { const k = e.target.dataset.k; if (k === 'vendId' || k === 'date') { const v = S.vendors[$('[data-k=vendId]', hf).value]; if (v) { $('[data-k=due]', hf).value = addDays($('[data-k=date]', hf).value, +(v.terms || 30)); if (k === 'vendId' && b.lines.length === 1 && !num(b.lines[0].net)) { b.lines[0].acc = v.acc || '6120'; b.lines[0].vat = v.vat || 'SR'; bindLines($('#lines', m), b, 'purch', totals); } } } totals(); });
       const ok = () => { totals(); b.lines = b.lines.filter(l => num(l.net)); calcPurch(b); if (!b.vendId) return toast('Select a supplier', 1), false; if (!b.lines.length) return toast('Add at least one line', 1), false; if (!b.due) b.due = b.date; return true; };
-      if ($('#bsave', m)) $('#bsave', m).onclick = async () => { if (!ok()) return; await Store.save('bills', b); Modal.close(); toast('Draft saved'); };
+      if ($('#bsave', m)) $('#bsave', m).onclick = async () => { if (!ok()) return; await Store.save('bills', b); toast('Draft saved'); billForm(b.id); };
       if ($('#bpost', m)) $('#bpost', m).onclick = async () => {
         if (!ok() || !lockOK(b.date)) return;
         if (b.supNo && list('bills', x => x.id !== b.id && x.vendId === b.vendId && x.supNo === b.supNo && x.status === 'posted').length && !(await confirmDlg('Possible duplicate', 'A posted bill from this supplier already has invoice number ' + esc(b.supNo) + '.', 'Post anyway'))) return;
         if (b.lines.some(l => l.vat === 'SR') && !(S.vendors[b.vendId] || {}).trn && !(await confirmDlg('Supplier TRN missing', 'Input VAT can only be recovered with a valid tax invoice showing the supplier TRN. Post anyway?', 'Post'))) return;
-        b.no = nextNo('bills', b.kind === 'credit' ? 'DN' : 'BILL', b.date); b.status = 'posted'; await Store.save('bills', b); Modal.close(); toast((b.kind === 'credit' ? 'Credit note ' : 'Bill ') + b.no + ' posted');
+        b.no = nextNo('bills', b.kind === 'credit' ? 'DN' : 'BILL', b.date); b.status = 'posted'; await Store.save('bills', b); toast((b.kind === 'credit' ? 'Credit note ' : 'Bill ') + b.no + ' posted' + (attCount(b) ? '' : ' — now attach the supplier tax invoice')); billForm(b.id);
       };
       if ($('#bdel', m)) $('#bdel', m).onclick = async () => { await Store.remove('bills', b.id); Modal.close(); };
       if ($('#bvoid', m)) $('#bvoid', m).onclick = async () => { if (!lockOK(b.date)) return; if (billPaid(b) > 0) return toast('Remove payments applied to this bill first', 1); if (await confirmDlg('Void ' + b.no + '?', 'It stays on file for audit but is removed from the ledger and VAT.', 'Void', 1)) { b.status = 'void'; await Store.save('bills', b); Modal.close(); } };
@@ -1799,12 +1803,12 @@ VIEWS.payments = {
   render() {
     const rows = list('payments').filter(p => match('payments', p.no, vendName(p.vendId), p.chqNo)).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
     return `<div class="toolbar">${searchBox('payments')}<span class="grow"></span><button class="btn acc" onclick="paymentForm()">${ico('plus')}Pay supplier</button></div>
-    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Supplier</th><th>Method</th><th>Paid from</th><th>Cheque</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p => `<tr class="click" data-p="${p.id}"><td><b>${esc(p.no)}</b></td><td>${fdate(p.date)}</td><td>${esc(vendName(p.vendId))}</td><td>${p.method.toUpperCase()}</td><td>${esc(ACC(p.acc).name)}</td><td>${esc(p.chqNo || '')}${p.chqDate ? ' · ' + fdate(p.chqDate) : ''}</td><td class="n b">${fmt(p.amount)}</td><td>${p.status === 'void' ? pill('void') : p.method === 'pdc' ? pill(p.pdcStatus) : pill('posted')}</td><td>${p.method === 'pdc' && p.pdcStatus === 'pending' && p.status === 'posted' ? `<button class="btn sm" data-clr="${p.id}">Presented</button>` : ''}</td></tr>`).join('')}</tbody></table>` : emptyState('No payments', 'Pay supplier bills by bank transfer, cash, cheque or PDC.')}</div>`;
+    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Supplier</th><th>Method</th><th>Paid from</th><th>Cheque</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(p => `<tr class="click" data-p="${p.id}"><td><b>${esc(p.no)}</b>${clip(p)}</td><td>${fdate(p.date)}</td><td>${esc(vendName(p.vendId))}</td><td>${p.method.toUpperCase()}</td><td>${esc(ACC(p.acc).name)}</td><td>${esc(p.chqNo || '')}${p.chqDate ? ' · ' + fdate(p.chqDate) : ''}</td><td class="n b">${fmt(p.amount)}</td><td>${p.status === 'void' ? pill('void') : p.method === 'pdc' ? pill(p.pdcStatus) : pill('posted')}</td><td>${p.method === 'pdc' && p.pdcStatus === 'pending' && p.status === 'posted' ? `<button class="btn sm" data-clr="${p.id}">Presented</button>` : ''}</td></tr>`).join('')}</tbody></table>` : emptyState('No payments', 'Pay supplier bills by bank transfer, cash, cheque or PDC.')}</div>`;
   },
   mount(el) {
     el.addEventListener('click', async e => {
       const c = e.target.closest('[data-clr]'); if (c) { e.stopPropagation(); const p = clone(S.payments[c.dataset.clr]); const v = await promptDlg('PDC presented ' + (p.chqNo || ''), fDate('Date debited by bank', 'd', p.chqDate || today()), 'Mark presented'); if (!v || !lockOK(v.d)) return; Object.assign(p, { pdcStatus: 'cleared', clearDate: v.d }); await Store.save('payments', p); return; }
-      const tr = e.target.closest('tr[data-p]'); if (tr) { const p = S.payments[tr.dataset.p]; Modal.open({ title: 'Payment ' + esc(p.no), body: previewDoc(paymentModel(p)) + auditLine(p), foot: `${p.status === 'posted' ? '<button class="btn dng" id="pv">Void</button>' : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(paymentModel(p), p.no + '.pdf'); if ($('#pv', m)) $('#pv', m).onclick = async () => { if (!lockOK(p.date)) return; if (await confirmDlg('Void ' + p.no + '?', 'Kept for audit; removed from the ledger.', 'Void', 1)) { await Store.save('payments', { ...clone(p), status: 'void', allocations: [] }); Modal.close(); } }; } }); }
+      const tr = e.target.closest('tr[data-p]'); if (tr) { const p = S.payments[tr.dataset.p]; Modal.open({ title: 'Payment ' + esc(p.no), body: attSection('payments', p.id) + '<div style="height:12px"></div>' + previewDoc(paymentModel(p)) + auditLine(p), foot: `${p.status === 'posted' ? '<button class="btn dng" id="pv">Void</button>' : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(paymentModel(p), p.no + '.pdf'); if ($('#pv', m)) $('#pv', m).onclick = async () => { if (!lockOK(p.date)) return; if (await confirmDlg('Void ' + p.no + '?', 'Kept for audit; removed from the ledger.', 'Void', 1)) { await Store.save('payments', { ...clone(p), status: 'void', allocations: [] }); Modal.close(); } }; } }); }
     });
   }
 };
@@ -1840,7 +1844,7 @@ VIEWS.money = {
     const rows = list('money').filter(x => match('money', x.no, x.payee, x.ref, x.memo)).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
     return `<div class="toolbar">${searchBox('money', 'Search payee, voucher…')}<span class="grow"></span><button class="btn" onclick="moneyForm(null,'in')">${ico('in')}Money in</button><button class="btn acc" onclick="moneyForm(null,'out')">${ico('plus')}Expense / money out</button></div>
     <div class="alert" style="margin-bottom:14px"><span class="ic">i</span><div>Use vouchers for direct bank/cash spending not booked as supplier bills (petty cash, DEWA, bank charges, salaries via WPS, VAT and CT payments to FTA, capital introduced, loans).</div></div>
-    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Type</th><th>Payee / payer</th><th>Account(s)</th><th>Bank / cash</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>${rows.map(x => `<tr class="click" onclick="moneyView('${x.id}')"><td><b>${esc(x.no)}</b>${x.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}</td><td>${fdate(x.date)}</td><td>${x.dir === 'in' ? '<span class="pill good">in</span>' : '<span class="pill">out</span>'}</td><td>${esc(x.payee || '')}</td><td class="small">${esc((x.lines || []).map(l => ACC(l.acc).name).join(', '))}</td><td>${esc(ACC(x.acc).name)}</td><td class="n b">${fmt(x.total)}</td><td>${pill(x.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No vouchers yet', 'Record petty cash, utilities, salaries, VAT payments and other bank movements.')}</div>`;
+    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Voucher</th><th>Date</th><th>Type</th><th>Payee / payer</th><th>Account(s)</th><th>Bank / cash</th><th class="n">Total</th><th>Status</th></tr></thead><tbody>${rows.map(x => `<tr class="click" onclick="moneyView('${x.id}')"><td><b>${esc(x.no)}</b>${x.src === 'wms' ? ' <span class="pill info">WMS</span>' : ''}${clip(x)}</td><td>${fdate(x.date)}</td><td>${x.dir === 'in' ? '<span class="pill good">in</span>' : '<span class="pill">out</span>'}</td><td>${esc(x.payee || '')}</td><td class="small">${esc((x.lines || []).map(l => ACC(l.acc).name).join(', '))}</td><td>${esc(ACC(x.acc).name)}</td><td class="n b">${fmt(x.total)}</td><td>${pill(x.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No vouchers yet', 'Record petty cash, utilities, salaries, VAT payments and other bank movements.')}</div>`;
   }
 };
 function moneyForm(id, dir, preset) {
@@ -1857,12 +1861,12 @@ function moneyForm(id, dir, preset) {
       const totals = () => { Object.assign(x, vals(hf)); calc(); $('#tots', m).innerHTML = `<div><span>Net</span><b>${fmt(x.net)}</b></div><div><span>VAT</span><b>${fmt(x.vat)}</b></div><div class="g"><span>Total</span><span>AED ${fmt(x.total)}</span></div>`; };
       bindLines($('#lines', m), x, x.dir === 'in' ? 'in' : 'purch', totals);
       hf.addEventListener('input', totals);
-      $('#msave', m).onclick = async () => { totals(); x.lines = x.lines.filter(l => num(l.net)); calc(); if (!x.lines.length) return toast('Enter an amount', 1); if (!lockOK(x.date)) return; if (!x.no) x.no = nextNo('money', 'MV', x.date); x.status = 'posted'; await Store.save('money', x); Modal.close(); toast('Voucher ' + x.no + ' saved'); };
+      $('#msave', m).onclick = async () => { totals(); x.lines = x.lines.filter(l => num(l.net)); calc(); if (!x.lines.length) return toast('Enter an amount', 1); if (!lockOK(x.date)) return; if (!x.no) x.no = nextNo('money', 'MV', x.date); x.status = 'posted'; await Store.save('money', x); toast('Voucher ' + x.no + ' saved — attach the receipt or bill'); moneyView(x.id); };
       if (id) $('#mvoid', m).onclick = async () => { if (!lockOK(x.date)) return; if (await confirmDlg('Void ' + x.no + '?', 'Kept for audit; removed from the ledger.', 'Void', 1)) { x.status = 'void'; await Store.save('money', x); Modal.close(); } };
     }
   });
 }
-function moneyView(id) { const x = S.money[id]; Modal.open({ title: 'Voucher ' + esc(x.no) + ' ' + pill(x.status), body: previewDoc(moneyModel(x)) + auditLine(x), foot: `${x.status === 'posted' ? `<button class="btn" onclick="moneyForm('${id}')">Edit</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(moneyModel(x), x.no + '.pdf'); } }); }
+function moneyView(id) { const x = S.money[id]; Modal.open({ title: 'Voucher ' + esc(x.no) + ' ' + pill(x.status), body: attSection('money', id) + '<div style="height:12px"></div>' + previewDoc(moneyModel(x)) + auditLine(x), foot: `${x.status === 'posted' ? `<button class="btn" onclick="moneyForm('${id}')">Edit</button>` : ''}<span class="grow"></span><button class="btn pri" id="pdf">${ico('pdf')}Download PDF</button>`, mount(m) { $('#pdf', m).onclick = () => downloadPDF(moneyModel(x), x.no + '.pdf'); } }); }
 
 /* ================= Bank & cash ================= */
 VIEWS.banking = {
@@ -1905,7 +1909,7 @@ VIEWS.journals = {
     const rows = list('journals').filter(j => match('journals', j.no, j.memo)).sort((a, b) => (b.date + b.no).localeCompare(a.date + a.no));
     return `<div class="toolbar">${searchBox('journals')}<span class="grow"></span><button class="btn acc" onclick="journalForm()">${ico('plus')}New journal</button></div>
     <div class="alert" style="margin-bottom:14px"><span class="ic">i</span><div>Use journals for opening balances, accruals and prepayments, the receivables impairment allowance (IFRS for SMEs s.11), salary accruals, statutory reserve transfers and year-end adjustments. Depreciation, revenue deferral and VAT closing entries are generated automatically.</div></div>
-    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Journal</th><th>Date</th><th>Narration</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>${rows.map(j => `<tr class="click" onclick="journalForm('${j.id}')"><td><b>${esc(j.no)}</b></td><td>${fdate(j.date)}</td><td>${esc(j.memo || '')}</td><td class="n">${fmt((j.lines || []).reduce((s, l) => s + num(l.dr), 0))}</td><td>${pill(j.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No journals', 'Post opening balances and adjustments here.')}</div>`;
+    <div class="card">${rows.length ? `<table class="t"><thead><tr><th>Journal</th><th>Date</th><th>Narration</th><th class="n">Amount</th><th>Status</th></tr></thead><tbody>${rows.map(j => `<tr class="click" onclick="journalForm('${j.id}')"><td><b>${esc(j.no)}</b>${clip(j)}</td><td>${fdate(j.date)}</td><td>${esc(j.memo || '')}</td><td class="n">${fmt((j.lines || []).reduce((s, l) => s + num(l.dr), 0))}</td><td>${pill(j.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('No journals', 'Post opening balances and adjustments here.')}</div>`;
   }
 };
 function journalForm(id, preset) {
@@ -1913,7 +1917,7 @@ function journalForm(id, preset) {
   Modal.open({
     title: id ? 'Journal ' + esc(j.no) + ' ' + pill(j.status) : 'New journal entry', body: `<div class="fg" id="hf">${fDate('Date', 'date', j.date)}${fText('Narration', 'memo', j.memo, { cls: 's3' })}</div><div class="sect">Lines</div>
     <div id="lines"><table class="li"><thead><tr><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th><th></th></tr></thead><tbody></tbody></table><button class="btn sm" data-addline style="margin-top:6px">${ico('plus')}Add line</button></div>
-    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>${j.createdAt ? auditLine(j) : ''}`,
+    <div class="row" style="margin-top:14px"><span class="grow"></span><div class="totals" id="tots"></div></div>${id ? attSection('journals', id) : ''}${j.createdAt ? auditLine(j) : ''}`,
     foot: `${id && j.status === 'posted' ? '<button class="btn dng" id="jvoid">Void</button><button class="btn" id="jpdf">PDF</button>' : ''}<span class="grow"></span>${j.status !== 'void' ? '<button class="btn pri" id="jsave">Post journal</button>' : ''}`,
     mount(m) {
       const totals = () => { const dr = j.lines.reduce((s, l) => s + num(l.dr), 0), cr = j.lines.reduce((s, l) => s + num(l.cr), 0); $('#tots', m).innerHTML = `<div><span>Debits</span><b>${fmt(dr)}</b></div><div><span>Credits</span><b>${fmt(cr)}</b></div><div class="g"><span>Difference</span><span style="color:${Math.abs(dr - cr) < .005 ? 'inherit' : '#b42318'}">${fmt(dr - cr)}</span></div>`; };
@@ -1980,7 +1984,7 @@ function assetForm(id) {
     ${fDate('Available for use', 'date', a.date)}${fNum('Cost (AED, excl. recoverable VAT)', 'cost', a.cost)}${fNum('Residual value', 'residual', a.residual)}${fNum('Useful life (months)', 'life', a.life)}
     ${fSel('Cost recorded via', 'source', a.source, [['bill', 'Supplier bill / voucher (already posted)'], ['opening', 'Opening balance (post cost now)']], { cls: 's2' })}${fNum('Opening acc. depreciation (if opening)', 'openAD', a.openAD)}<span></span>
     ${fDate('Disposal date', 'disposal.date', (a.disposal || {}).date)}<div class="s3 small muted" style="align-self:end">On disposal the cost and accumulated depreciation are removed and the net book value is charged to 4960. Invoice any sale proceeds to account 4960 (standard-rated) so the gain or loss nets there.</div></div>
-    ${sch.length ? `<div class="sect">Depreciation schedule</div><div class="tw" style="max-height:260px"><table class="t"><thead><tr><th>Month</th><th class="n">Charge</th><th class="n">Accumulated</th><th class="n">NBV</th></tr></thead><tbody>${(() => { let acc = num(a.openAD); return sch.map(x => { acc = r2(acc + x.v); return `<tr><td>${x.lbl}${x.d > today() ? ' <span class="muted small">(future)</span>' : ''}</td><td class="n">${fmt(x.v)}</td><td class="n">${fmt(acc)}</td><td class="n">${fmt(a.cost - acc)}</td></tr>`; }).join(''); })()}</tbody></table></div>` : ''}`,
+    ${sch.length ? `${attSection('assets', id)}<div class="sect">Depreciation schedule</div><div class="tw" style="max-height:260px"><table class="t"><thead><tr><th>Month</th><th class="n">Charge</th><th class="n">Accumulated</th><th class="n">NBV</th></tr></thead><tbody>${(() => { let acc = num(a.openAD); return sch.map(x => { acc = r2(acc + x.v); return `<tr><td>${x.lbl}${x.d > today() ? ' <span class="muted small">(future)</span>' : ''}</td><td class="n">${fmt(x.v)}</td><td class="n">${fmt(acc)}</td><td class="n">${fmt(a.cost - acc)}</td></tr>`; }).join(''); })()}</tbody></table></div>` : ''}`,
     foot: `${id ? '<button class="btn dng" id="adel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="as">Save asset</button>`,
     mount(m) {
       $('#as', m).onclick = async () => { const v = vals($('#af', m)); Object.assign(a, v); a.cost = r2(a.cost); if (!a.name || !(a.cost > 0) || !(a.life > 0)) return toast('Name, cost and useful life are required', 1); if (!lockOK(a.date)) return; await Store.save('assets', a); Modal.close(); toast('Asset saved'); };
@@ -2011,7 +2015,7 @@ VIEWS.employees = {
 };
 function employeeForm(id) {
   const e = id ? clone(S.employees[id]) : { id: uid(), status: 'active', joinDate: today() };
-  Modal.open({ title: id ? esc(e.name) : 'Add employee', size: 'narrow', body: `<div class="fg" id="ef" style="grid-template-columns:1fr 1fr">${fText('Full name', 'name', e.name, { cls: 's2' })}${fText('Employee no.', 'empNo', e.empNo)}${fText('Designation', 'designation', e.designation)}${fDate('Joining date', 'joinDate', e.joinDate)}${fNum('Basic monthly salary (AED)', 'basic', e.basic)}${fSel('Status', 'status', e.status, [['active', 'Active'], ['left', 'Left']])}${fDate('Last working day', 'leaveDate', e.leaveDate)}</div>`, foot: `${id ? '<button class="btn dng" id="edel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="es">Save</button>`, mount(m) { $('#es', m).onclick = async () => { const v = vals($('#ef', m)); if (!v.name || !v.joinDate) return toast('Name and joining date required', 1); await Store.save('employees', { ...e, ...v }); Modal.close(); }; if ($('#edel', m)) $('#edel', m).onclick = async () => { await Store.remove('employees', e.id); Modal.close(); }; } });
+  Modal.open({ title: id ? esc(e.name) : 'Add employee', size: 'narrow', body: `<div class="fg" id="ef" style="grid-template-columns:1fr 1fr">${fText('Full name', 'name', e.name, { cls: 's2' })}${fText('Employee no.', 'empNo', e.empNo)}${fText('Designation', 'designation', e.designation)}${fDate('Joining date', 'joinDate', e.joinDate)}${fNum('Basic monthly salary (AED)', 'basic', e.basic)}${fSel('Status', 'status', e.status, [['active', 'Active'], ['left', 'Left']])}${fDate('Last working day', 'leaveDate', e.leaveDate)}</div>${id ? attSection('employees', id) : ''}`, foot: `${id ? '<button class="btn dng" id="edel">Delete</button>' : ''}<span class="grow"></span><button class="btn pri" id="es">Save</button>`, mount(m) { $('#es', m).onclick = async () => { const v = vals($('#ef', m)); if (!v.name || !v.joinDate) return toast('Name and joining date required', 1); await Store.save('employees', { ...e, ...v }); Modal.close(); }; if ($('#edel', m)) $('#edel', m).onclick = async () => { await Store.remove('employees', e.id); Modal.close(); }; } });
 }
 
 /* ================= VAT return ================= */
@@ -2255,7 +2259,7 @@ VIEWS.company = {
     <div class="card"><div class="hd"><h3>Warehouse service catalogue</h3><span class="grow"></span><button class="btn sm" onclick="servicesForm()">Edit</button></div><table class="t"><thead><tr><th>Code</th><th>Service</th><th>Unit</th><th class="n">Rate</th><th>Account</th></tr></thead><tbody>${services().map(s => `<tr><td>${esc(s.code)}</td><td>${esc(s.name)}</td><td>${esc(s.unit)}</td><td class="n">${fmt(s.rate)}</td><td>${s.acc}</td></tr>`).join('')}</tbody></table></div>
     <div class="card"><div class="hd"><h3>Data, backup & storage</h3></div><div class="bd grid" style="gap:10px">
       <div class="alert ${MODE === 'cloud' || MODE === 'firebase' ? 'good' : 'warn'}"><span class="ic">${MODE === 'cloud' || MODE === 'firebase' ? '✓' : '!'}</span><div><b>${MODE === 'firebase' ? 'Firebase storage · project ' + esc((FBCFG() || {}).projectId || '') : MODE === 'cloud' ? 'Cloud storage' : 'Browser-only storage'}</b>${MODE === 'firebase' ? 'Books are stored in Firestore under acc/books, shared live with every signed-in accountant and linked to the warehouse system.' : MODE === 'cloud' ? 'Books are stored with this page and shared live with everyone you give edit access. Changes sync automatically.' : 'Data stays in this browser. Connect to Firebase to share the books with the warehouse system.'}</div></div>
-      <div>Keep VAT records for at least five years and Corporate Tax records for seven. Download a full backup regularly and keep it offline.</div>
+      <div>Keep VAT records for at least five years and Corporate Tax records for seven. Download a full backup regularly and keep it offline. The backup file contains the books; attached documents stay in ${MODE === 'firebase' ? 'Firestore' : MODE === 'cloud' ? 'the page storage' : 'this browser'} and can be downloaded from each record.</div>
       <div class="row"><button class="btn pri" id="bk">Download full backup (JSON)</button><button class="btn" id="rs">Restore from backup…</button><input type="file" id="rsf" accept=".json,application/json" hidden></div>
       ${MODE === 'local' ? '<div class="row"><button class="btn acc" onclick="connectFirebase()">Connect to Firebase (shared with the warehouse system)</button></div>' : ''}${MODE === 'firebase' ? firestoreRulesHelp() : ''}
       <div class="row"><button class="btn" id="lock">Change period lock date</button><button class="btn dng" id="wipe">Erase all data…</button></div></div></div>
@@ -2643,7 +2647,7 @@ function quoteView(id) {
     ${q.cid ? `<div class="alert good" style="margin-bottom:10px"><span class="ic">✓</span><div><b>Converted to storage record ${esc(q.cid)}</b>${q.convertedAt ? 'on ' + new Date(q.convertedAt).toLocaleString('en-GB') : ''}${q.convertedBy ? ' by ' + esc(q.convertedBy) : ''}</div></div>` : ''}
     ${s === 'declined' && q.lostReason ? `<div class="alert bad" style="margin-bottom:10px"><span class="ic">!</span><div><b>Declined</b>${esc(q.lostReason)}</div></div>` : ''}
     ${revs.length > 1 ? `<div class="small muted" style="margin-bottom:8px">Revisions: ${revs.map(r => `<a href="#" onclick="quoteView('${r.id}');return false">${esc(r.no)}</a>`).join(' · ')}</div>` : ''}
-    ${previewDoc(quoteModel(q))}
+    ${attSection('quotes', id)}<div style="height:12px"></div>${previewDoc(quoteModel(q))}
     <div class="sect">Activity</div><div class="small">${(q.log || []).slice().reverse().map(l => `<div>${new Date(l.at).toLocaleString('en-GB')} — ${esc(l.ev)}${l.by ? ' <span class="muted">(' + esc(l.by) + ')</span>' : ''}</div>`).join('') || '<span class="muted">—</span>'}</div>`,
     foot: `<button class="btn" id="qdup">Duplicate</button>${['sent', 'expired', 'accepted', 'draft'].includes(s) && !q.cid ? '<button class="btn" id="qrev">Revise</button>' : ''}${['draft', 'sent'].includes(q.status) ? `<button class="btn" onclick="quoteForm('${id}')">Edit</button>` : ''}<span class="grow"></span>
       ${['draft', 'sent', 'expired'].includes(s) ? '<button class="btn dng" id="qlost">Declined</button><button class="btn" id="qacc">Accepted ✓</button>' : ''}
@@ -2679,6 +2683,122 @@ async function quoteSettings() {
   if (!v) return;
   const tiers = [0, 1, 2].map(i => ({ m: num(v['t' + i + 'm']), p: num(v['t' + i + 'p']) })).filter(t => t.m > 0 && t.p > 0);
   await Store.save('meta', { ...clone(S.meta.company), quote: { ...(S.meta.company.quote || {}), validity: num(v.validity) || 15, depMonths: num(v.depMonths), tiers, terms: v.terms } }); toast('Quotation settings saved');
+}
+
+/* ================= Attachments (supporting documents) =================
+   Files are stored as base64 chunks next to the books, so no paid file storage is needed:
+     Firebase  → acc/books/files/{fileId}_{n}   (≈700 KB per chunk, Firestore limit is 1 MiB)
+     claude.ai → files/{fileId}_{n}             (≈190 KB per chunk)
+     browser   → IndexedDB
+   The record keeps only a list: attachments: [{id,name,type,size,n,at,by,note}]. Photos are shrunk before upload. */
+const ATT_MAX = 8 * 1024 * 1024; // 8 MB per file after compression
+const Files = {
+  size() { return MODE === 'firebase' ? 700000 : MODE === 'cloud' ? 190000 : 50e6; },
+  _idb: null,
+  async idb() {
+    if (this._idb) return this._idb;
+    this._idb = await new Promise((ok, no) => { const r = indexedDB.open('citycube_files', 1); r.onupgradeneeded = () => r.result.createObjectStore('c'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+    return this._idb;
+  },
+  async put(key, d) {
+    if (MODE === 'firebase') return FBC('files').doc(key).set({ d });
+    if (MODE === 'cloud') return DBH.collection('files').doc(key).set({ d });
+    const db = await this.idb(); return new Promise((ok, no) => { const t = db.transaction('c', 'readwrite'); t.objectStore('c').put(d, key); t.oncomplete = ok; t.onerror = () => no(t.error); });
+  },
+  async get(key) {
+    if (MODE === 'firebase') { const s = await FBC('files').doc(key).get(); return s.exists ? s.data().d : null; }
+    if (MODE === 'cloud') { const s = await DBH.collection('files').doc(key).get(); return s.exists ? s.data().d : null; }
+    const db = await this.idb(); return new Promise((ok, no) => { const r = db.transaction('c').objectStore('c').get(key); r.onsuccess = () => ok(r.result || null); r.onerror = () => no(r.error); });
+  },
+  async del(key) {
+    try {
+      if (MODE === 'firebase') return await FBC('files').doc(key).delete();
+      if (MODE === 'cloud') return await DBH.collection('files').doc(key).delete();
+      const db = await this.idb(); const t = db.transaction('c', 'readwrite'); t.objectStore('c').delete(key);
+    } catch (e) { }
+  }
+};
+const readAsDataURL = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(f); });
+async function shrinkImage(f) {
+  if (!/^image\/(jpeg|png|webp|bmp)$/.test(f.type)) return null;
+  const url = await readAsDataURL(f); const im = new Image(); im.src = url; try { await im.decode(); } catch (e) { return null; }
+  const mx = 1800, s = Math.min(1, mx / Math.max(im.naturalWidth, im.naturalHeight)); const c = document.createElement('canvas');
+  c.width = Math.round(im.naturalWidth * s); c.height = Math.round(im.naturalHeight * s); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+  const out = c.toDataURL('image/jpeg', 0.78); return out.length < url.length ? { data: out, type: 'image/jpeg', name: f.name.replace(/\.(png|webp|bmp|jpe?g)$/i, '') + '.jpg' } : null;
+}
+async function attachFiles(col, id, files, note) {
+  const rec = S[col][id]; if (!rec) return;
+  if (!CAN_WRITE) return toast('You have view-only access', 1);
+  const added = [];
+  for (const f of files) {
+    try {
+      let data, type = f.type || 'application/octet-stream', name = f.name;
+      const sh = await shrinkImage(f); if (sh) ({ data, type, name } = sh); else data = await readAsDataURL(f);
+      const b64 = data.slice(data.indexOf(',') + 1); const bytes = Math.floor(b64.length * 3 / 4);
+      if (bytes > ATT_MAX) { toast(`${f.name} is too large (${(bytes / 1048576).toFixed(1)} MB) — max 8 MB. Scan at a lower resolution or split the PDF.`, 1); continue; }
+      const fid = 'f' + uid(), sz = Files.size(), n = Math.ceil(b64.length / sz);
+      toast(`Uploading ${name}…`);
+      for (let i = 0; i < n; i++) await Files.put(`${fid}_${i}`, b64.slice(i * sz, (i + 1) * sz));
+      added.push({ id: fid, name, type, size: bytes, n, at: new Date().toISOString(), by: UID || '', note: note || '' });
+    } catch (e) { console.error(e); toast(`Could not upload ${f.name}: ${e.code === 'permission-denied' ? 'permission denied' : e.message || e}`, 1); }
+  }
+  if (!added.length) return;
+  const fresh = clone(S[col][id]); fresh.attachments = [...(fresh.attachments || []), ...added];
+  await Store.save(col, fresh); toast(`${added.length} document${added.length > 1 ? 's' : ''} attached`);
+}
+async function fileBlob(a) {
+  const parts = []; for (let i = 0; i < a.n; i++) { const d = await Files.get(`${a.id}_${i}`); if (d == null) throw new Error('part ' + (i + 1) + ' of ' + a.n + ' is missing'); parts.push(d); }
+  const bin = atob(parts.join('')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type: a.type });
+}
+const attIcon = t => /pdf/.test(t) ? '📄' : /^image/.test(t) ? '🖼️' : /sheet|excel|csv/.test(t) ? '📊' : /word|document/.test(t) ? '📝' : '📎';
+const attSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const attCount = r => (r && r.attachments || []).length;
+const clip = r => attCount(r) ? ` <span class="muted small" title="${attCount(r)} attachment(s)">📎${attCount(r)}</span>` : '';
+const ATT_HINT = { invoices: 'customer PO / LPO, delivery note, signed timesheet', creditnotes: 'customer approval, correspondence', receipts: 'bank advice, cheque copy, deposit slip', bills: 'supplier tax invoice (required to recover input VAT), LPO, delivery note', payments: 'bank transfer advice, cheque copy', money: 'receipt, utility bill, bank advice', journals: 'calculation, supporting schedule', quotes: 'enquiry, photos of goods, signed acceptance', customers: 'trade licence, TRN certificate, Emirates ID, storage agreement', vendors: 'trade licence, TRN certificate, contract', assets: 'purchase invoice, warranty, registration', employees: 'labour contract, passport / visa copy', vatreturns: 'EmaraTax submission receipt, payment confirmation' };
+function attSection(col, id) { return `<div class="sect">Supporting documents</div><div data-att="${col}|${id}"></div>`; }
+function mountAtt(el) {
+  const [col, id] = el.dataset.att.split('|');
+  const draw = () => {
+    const r = S[col][id]; if (!r) { el.innerHTML = '<div class="muted small">Save first, then attach documents.</div>'; return; }
+    const L = r.attachments || [];
+    el.innerHTML = `<div class="attz" style="border:1.5px dashed var(--line);border-radius:10px;padding:10px 12px;background:#fafbfd">
+      ${L.length ? `<table class="t" style="margin-bottom:8px"><tbody>${L.map((a, i) => `<tr><td style="width:28px">${attIcon(a.type)}</td><td><a href="#" data-open="${i}"><b>${esc(a.name)}</b></a>${a.note ? `<div class="muted small">${esc(a.note)}</div>` : ''}</td><td class="muted small">${attSize(a.size)}</td><td class="muted small">${new Date(a.at).toLocaleDateString('en-GB')}${a.by ? ' · ' + esc(String(a.by).split('@')[0]) : ''}</td><td style="width:150px;text-align:right"><button class="btn sm" data-dl="${i}">Download</button> <button class="btn sm ghost dng" data-rm="${i}" title="Remove">✕</button></td></tr>`).join('')}</tbody></table>` : ''}
+      <div class="row" style="gap:10px"><button class="btn sm" data-add>📎 Attach files</button><span class="muted small">or drop files here · PDF, photos, Excel, Word · up to 8 MB each${ATT_HINT[col] ? ' · e.g. ' + ATT_HINT[col] : ''}</span>
+      <input type="file" multiple hidden accept="image/*,application/pdf,.pdf,.xlsx,.xls,.csv,.docx,.doc,.eml,.msg,.txt"></div></div>`;
+    const inp = $('input[type=file]', el);
+    $('[data-add]', el).onclick = () => inp.click();
+    inp.onchange = async () => { const fs = [...inp.files]; inp.value = ''; if (fs.length) { el.style.opacity = .6; await attachFiles(col, id, fs); el.style.opacity = 1; draw(); } };
+    const z = $('.attz', el);
+    z.ondragover = e => { e.preventDefault(); z.style.borderColor = 'var(--cyan)'; }; z.ondragleave = () => z.style.borderColor = '';
+    z.ondrop = async e => { e.preventDefault(); z.style.borderColor = ''; const fs = [...e.dataTransfer.files]; if (fs.length) { el.style.opacity = .6; await attachFiles(col, id, fs); el.style.opacity = 1; draw(); } };
+    $$('[data-dl]', el).forEach(b => b.onclick = async () => { const a = L[+b.dataset.dl]; try { b.disabled = true; await saveFile(a.name, await fileBlob(a)); } catch (e) { toast('Could not open: ' + e.message, 1); } b.disabled = false; });
+    $$('[data-open]', el).forEach(b => b.onclick = async e => { e.preventDefault(); const a = L[+b.dataset.open]; try { const bl = await fileBlob(a); attPreview(a, bl); } catch (x) { toast('Could not open: ' + x.message, 1); } });
+    $$('[data-rm]', el).forEach(b => b.onclick = async () => {
+      const a = L[+b.dataset.rm]; const L2 = company().lockDate;
+      if (L2 && r.date && r.date <= L2) return toast('This record is in a locked period — supporting documents cannot be removed.', 1);
+      if (!(await confirmDlg('Remove ' + esc(a.name) + '?', 'The file will be deleted from the books.', 'Remove', 1))) return;
+      const fresh = clone(S[col][id]); fresh.attachments = (fresh.attachments || []).filter(x => x.id !== a.id); await Store.save(col, fresh);
+      for (let i = 0; i < a.n; i++) Files.del(`${a.id}_${i}`); draw();
+    });
+  };
+  draw();
+}
+function attPreview(a, blob) {
+  const url = URL.createObjectURL(blob); const el = $('#dlg');
+  const body = /^image\//.test(a.type) ? `<img src="${url}" style="max-width:100%;max-height:72vh;display:block;margin:0 auto;border-radius:6px">`
+    : /pdf/.test(a.type) ? `<iframe src="${url}" style="width:100%;height:72vh;border:0;background:#eee"></iframe>`
+      : `<div class="muted" style="padding:30px;text-align:center">No preview for this file type — download it to open.</div>`;
+  el.innerHTML = `<div class="bx" style="width:min(980px,95vw)"><div class="row" style="margin-bottom:10px"><h3 style="margin:0">${attIcon(a.type)} ${esc(a.name)}</h3><span class="grow"></span><button class="btn sm" id="apdl">Download</button><button class="btn sm" data-n>Close</button></div>${body}</div>`;
+  el.classList.add('on');
+  const close = () => { el.classList.remove('on'); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  $('[data-n]', el).onclick = close; $('#apdl', el).onclick = () => saveFile(a.name, blob);
+}
+/* Bills / vouchers that claim input VAT without the supplier's tax invoice on file */
+function missingVatDocs(from) {
+  const vatLine = l => ['SR', 'RC', 'IM'].includes(l.vat) && num(l.vatAmt) > 0;
+  return [...list('bills', b => b.status === 'posted' && !b.opening && b.date >= from && (b.lines || []).some(vatLine) && !attCount(b)).map(b => ({ col: 'bills', r: b })),
+  ...list('money', m => m.status === 'posted' && m.dir === 'out' && m.date >= from && (m.lines || []).some(vatLine) && !attCount(m)).map(m => ({ col: 'money', r: m }))];
 }
 
 
