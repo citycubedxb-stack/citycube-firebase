@@ -1423,7 +1423,7 @@ function pushSet(){if(!fs)return;const s={};SHK.forEach(k=>s[k]=S[k]);fs.doc("se
 async function loadRemote(){}
 async function saveLay(){PL=PL.filter(p=>p.f>1e-6);if(!fs)return;layDirty=false;fs.doc("layout/main").set({pl:PL,by:me,at:new Date().toISOString()}).then(()=>lsy(true,"saved & shared "+new Date().toLocaleTimeString())).catch(e=>lsy(false,e.message))}
 async function loadLay(force){if(force)toast("Layout updates live – nothing to reload",2500)}
-function applyLock(){$("del").style.display=adm?"":"none";$("t5").style.display=adm?"":"none";if($("gsy"))$("gsy").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
+function applyLock(){$("del").style.display=adm?"":"none";$("t5").style.display=adm?"":"none";if($("gsy"))$("gsy").style.display=adm?"":"none";if($("wpt"))$("wpt").style.display=adm?"":"none";$("t3").style.display=adm?"":"none";$("slk").style.display="none";if(!adm&&!$("v3").hidden)tab(1)}
 async function adminVerify(){return adm}
 function adminPrompt(){toast(adm?"You are an admin":"Admin rights are given in the Firebase console (admins list)",4000)}
 async function cleanTh(){const lim=addDays(today(),-(+S.idret||50));try{const s=await fs.collection("records").where("invDate","<",lim).get();s.docs.forEach(d=>{const r=d.data();if(r.invDate&&(r.idTh||r.idLink||(r.gTh||[]).length||(r.gLinks||[]).length))d.ref.update({idTh:"",idLink:"",gTh:[],gLinks:[]}).catch(()=>{})})}catch(e){}}
@@ -1450,7 +1450,8 @@ async function nextRcpt(){try{const n=await fs.runTransaction(async t=>{const re
 async function logPay(r,amt,mode,ref,forInv,type,date,note,extra){const no=await nextRcpt(),p={no,date:date||today(),at:new Date().toISOString(),cid:r.cid,customer:r.name||"",trn:r.trn||"",idno:r.idno||"",amount:+(+amt).toFixed(2),mode:mode||"Cash",ref:ref||"",forInv:forInv||"",type:type||"Payment",note:note||"",by:me,balAfter:+n2(r.balance),applied:type=="Security deposit"?0:1,...(extra||{})};
  fs.doc("payments/"+no).set(p).catch(e=>toast("Receipt register: "+e.message,8000));return p}
 function rcptDoc(p,r,copy){r=r||{};const bal=+p.balAfter||0;
- return head("PAYMENT RECEIPT",`<b>Receipt No: ${esc(p.no)}</b><br>Date: ${esc(p.date)}${copy?"<br><b>COPY – reprint</b>":""}`)+`<table>${row("Received from",p.customer,"Customer ID",p.cid)}${row("ID no.",p.idno||r.idno,"Customer TRN",p.trn)}${row("Payment mode",p.mode,"Reference / cheque no.",p.ref)}${row("Towards",(p.type||"Payment")+(p.forInv?" – "+p.forInv:""),"Warehouse location",r.loc||"")}</table>
+ const vd=p.void?`<div style="position:relative;height:0;overflow:visible"><div style="position:absolute;left:50%;top:150px;transform:translateX(-50%) rotate(-18deg);border:8px solid #c0392b;color:#c0392b;font:900 84px Arial,sans-serif;letter-spacing:8px;padding:2px 26px;opacity:.28;white-space:nowrap;pointer-events:none">VOID</div></div><div style="border:2px solid #c0392b;color:#c0392b;padding:6px 10px;margin:0 0 8px;font-weight:700;font-size:13px">VOID – CANCELLED RECEIPT. Not valid for payment.${p.voidReason?" Reason: "+esc(p.voidReason)+".":""}${p.voidAt?" Voided on "+esc(String(p.voidAt).slice(0,10))+".":""}</div>`:"";
+ return vd+head("PAYMENT RECEIPT",`<b>Receipt No: ${esc(p.no)}</b><br>Date: ${esc(p.date)}${copy?"<br><b>COPY – reprint</b>":""}`)+`<table>${row("Received from",p.customer,"Customer ID",p.cid)}${row("ID no.",p.idno||r.idno,"Customer TRN",p.trn)}${row("Payment mode",p.mode,"Reference / cheque no.",p.ref)}${row("Towards",(p.type||"Payment")+(p.forInv?" – "+p.forInv:""),"Warehouse location",r.loc||"")}</table>
 <div class=rbx><span style="font-size:13px">Amount received</span><b style="font-size:22px;color:#1b3a78">AED ${n2(p.amount)}</b></div>
 <p><b>Amount in words:</b> ${words(+p.amount)}</p>
 ${p.type=="Security deposit"?`<p>Security deposit held – refundable as set out in the Storage Agreement. It is not a payment for services.</p>`:`<p>Outstanding balance on file after this payment: <b>AED ${n2(Math.max(0,bal))}</b>${bal<0?` (credit AED ${n2(-bal)})`:""}</p>`}
@@ -1513,6 +1514,13 @@ $("t5").onclick=()=>{tab(5);loadColl()};
 /* ================= GOOGLE SHEET BACKUP (button + daily schedule) ================= */
 let syncing=false,lastFail=0;
 $("csvi").insertAdjacentHTML("afterend",'<button class="btn s" id="gsy" style="display:none">☁ Sync to Google Sheet</button>');
+$("gsy").insertAdjacentHTML("afterend",'<button class="btn o" id="wpt" style="display:none;color:#c0392b;border-color:#c0392b">🗑 Clear ALL test data</button>');
+$("wpt").onclick=async()=>{if(!adm||!fs)return toast("Only an admin can do this");
+ if(!confirm("CLEAR ALL DATA?\n\nThis permanently deletes ALL customer records, tax invoices, receipts and activity, empties the layout and restarts invoice and receipt numbering from 1.\nSettings, admins and the company profile are kept.\n\nOnly do this before you start real business. Download a backup/CSV first.\nThis cannot be undone."))return;
+ if(prompt("Type CLEAR TEST DATA to confirm")!=="CLEAR TEST DATA")return toast("Cancelled");
+ try{let n=0;for(const c of["records","invoices","payments","activity"]){const sn=await fs.collection(c).get();for(let i=0;i<sn.docs.length;i+=400){const b=fs.batch();sn.docs.slice(i,i+400).forEach(d=>{b.delete(d.ref);n++});await b.commit()}}
+  await fs.doc("counters/inv").set({n:0});await fs.doc("counters/rcpt").set({n:0});await fs.doc("layout/main").set({pl:[],by:me,at:new Date().toISOString()});
+  PL=[];recs=[];CP=[];CI=[];PQ=[];toast("Cleared "+n+" documents. Numbering restarts at 1.",6000);setTimeout(()=>location.reload(),1500)}catch(e){toast("Could not clear: "+(e.message||e.code),8000)}};
 const gsend=async b=>{const j=await gs(b);if(!j)throw new Error("script unreachable – check the URL, and that access is Anyone");if(!j.ok)throw new Error(j.error=="denied"?"wrong script key":j.error=="unknown action"?"the Apps Script is the old version – paste the new GoogleDrive_Photos_AppsScript.gs and deploy a New version":j.error);return j};
 function showG(i){const e=$("gst");if(!i){e.textContent="Last sync: –";return}const c=Object.entries(i.counts||{}).map(([k,v])=>v+" "+k.toLowerCase()).join(", ");e.innerHTML="Last sync: <b>"+esc(new Date(i.at).toLocaleString())+"</b>"+(i.auto?" (scheduled)":" (button)")+" by "+esc(String(i.by||"").split("@")[0])+" – "+esc(c)+(i.url?` – <a href="${esc(i.url)}" target="_blank" rel="noopener">Open Google Sheet</a>`:"")}
 const SYS=[

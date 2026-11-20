@@ -1000,11 +1000,11 @@ function receiptModel(r) {
   const un = rcptUnalloc(r); if (un > 0.004) rows.push(['On account / advance', '', '', fmt(un)]);
   const meth = { bank: 'Bank transfer', cash: 'Cash', cheque: 'Cheque', pdc: 'Post-dated cheque', card: 'Card' }[r.method] || r.method;
   return {
-    title: 'RECEIPT VOUCHER', subtitle: C.name, subtitle2: 'TRN: ' + (C.trn || '—'),
+    title: r.status === 'void' ? 'RECEIPT VOUCHER – VOID' : 'RECEIPT VOUCHER', subtitle: C.name, subtitle2: 'TRN: ' + (C.trn || '—'),
     blocks: [{ label: 'Received from', lines: [cust.name, cust.address, cust.trn ? 'TRN: ' + cust.trn : ''] }],
     meta: [['Receipt no.', r.no], ['Date', fdate(r.date)], ['Method', meth], ...(r.chqNo ? [['Cheque no.', r.chqNo]] : []), ...(r.chqDate ? [['Cheque date', fdate(r.chqDate)]] : []), ...(r.chqBank ? [['Drawn on', r.chqBank]] : []), ['Deposited to', ACC(r.acc).name]],
     table: { cols: [{ h: 'Applied to invoice', w: 30 }, { h: 'Invoice date', w: 20 }, { h: 'Invoice total (AED)', w: 25, a: 'r' }, { h: 'Amount applied (AED)', w: 25, a: 'r' }], rows },
-    totals: [['Amount received', 'AED ' + fmt(r.amount), 1]], words: words(r.amount), notes: [['Memo', r.memo]],
+    totals: [['Amount received', 'AED ' + fmt(r.amount), 1]], words: words(r.amount), notes: [...(r.status === 'void' ? [['VOID', 'CANCELLED – not valid for payment.' + (r.voidReason ? ' Reason: ' + r.voidReason : '')]] : []), ['Memo', r.memo]],
     cg: 'This is a computer-generated receipt and is valid without signature or company stamp.' + (['pdc', 'cheque'].includes(r.method) ? ' Payment by cheque is subject to realisation; this receipt becomes void if the cheque is returned unpaid.' : ''), docRef: r.no
   };
 }
