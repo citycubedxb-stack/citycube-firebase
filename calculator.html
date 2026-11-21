@@ -169,7 +169,7 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
         <div><b id="annual">–</b><span>Annual rent</span></div>
         <div><b id="total">–</b><span>Contract total</span></div>
         <div><b id="vat">–</b><span>Contract total incl. 5% VAT</span></div>
-        <div><b id="dep">–</b><span>Security deposit</span></div>
+        <div><b id="dep">–</b><span id="depl">Security deposit</span></div>
         <div><b id="disc">–</b><span>Discount vs list rate</span></div>
         <div><b id="upfront">–</b><span id="upl">First payment</span></div>
       </div>
@@ -227,14 +227,16 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
         <div><label for="s_wt">Weight of term (%)</label><input type="number" id="s_wt" min="0" max="100" step="5"></div>
         <div><label for="s_pq">Quarterly plan bonus (rate points %)</label><input type="number" id="s_pq" min="0" max="20" step="1"></div>
         <div><label for="s_pa">Annual plan bonus (rate points %)</label><input type="number" id="s_pa" min="0" max="20" step="1"></div>
-        <div><label for="s_dep">Deposit (months of rent)</label><input type="number" id="s_dep" min="0" step="0.5"></div>
+        <div><label for="s_dep">Deposit for stays of 3+ months (months of rent)</label><input type="number" id="s_dep" min="0" step="0.5"></div>
+        <div><label for="s_depsh">Deposit for stays up to 2 weeks (% of that)</label><input type="number" id="s_depsh" min="0" max="100" step="5"></div>
+        <div><label for="s_depmin">Minimum deposit (AED)</label><input type="number" id="s_depmin" step="100"></div>
         <div><label for="s_mm">Minimum charge per contract (AED)</label><input type="number" id="s_mm" step="50"></div>
         <div><label for="s_open">Opening ask above recommended (%)</label><input type="number" id="s_open" min="0" max="30" step="1"></div>
         <div><label for="s_floor">Walk-away below recommended (%)</label><input type="number" id="s_floor" min="0" max="30" step="1"></div>
         <div><label for="s_vat">VAT (%)</label><input type="number" id="s_vat" min="0" step="0.5"></div>
       </div>
       <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" id="reset">Restore defaults</button></div>
-      <p class="note">How the price is built: a term score (1 day = 0, 1 week = 0.02, 2 weeks = 0.04, 1 month = 0.1, 3 = 0.35, 6 = 0.65, 9 = 0.85, 12 months = 1; the maximum term is 12 months and a month is counted as 30 days) and a space score (share of the facility, slightly favouring smaller shares) are blended by the weight above, plus any payment-plan bonus, capped at 1. The full-facility annual rate slides from the maximum (score 0) to the minimum (score 1). The customer pays their share of that rate.</p>
+      <p class="note">How the price is built: a term score (1 day = 0, 1 week = 0.02, 2 weeks = 0.04, 1 month = 0.1, 3 = 0.35, 6 = 0.65, 9 = 0.85, 12 months = 1; the maximum term is 12 months and a month is counted as 30 days). The deposit is the full deposit (months of rent above) for stays of 3 months or more, and shrinks steadily to the short-stay percentage for stays of 2 weeks or less, with the minimum deposit as a floor and a space score (share of the facility, slightly favouring smaller shares) are blended by the weight above, plus any payment-plan bonus, capped at 1. The full-facility annual rate slides from the maximum (score 0) to the minimum (score 1). The customer pays their share of that rate.</p>
     </details>
   </section>
 </div>
@@ -243,7 +245,7 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
 <div id="qsheet" aria-hidden="true"></div>
 <script>
 (function(){
-var DEF={min:0,max:0,sqft:0,cbm:0,wt:50,pq:3,pa:6,dep:1,mm:500,open:8,floor:5,vat:5};
+var DEF={min:0,max:0,sqft:0,cbm:0,wt:50,pq:3,pa:6,dep:1,depmin:1000,depsh:25,mm:500,open:8,floor:5,vat:5};
 var CFG=Object.assign({},DEF);
 try{}catch(e){}
 var unit='sqft',tunit='months';var TU={days:{max:90,k:1/30},weeks:{max:52,k:7/30},months:{max:12,k:1}};
@@ -294,7 +296,9 @@ function render(){
   $('rates').textContent='AED '+N2(m/sq)+' per sq ft per month · AED '+N2(m/cb)+' per CBM per month · AED '+N2(yr/sq)+' per sq ft per year'+(st.months<1.5?' · AED '+N2(m/30)+' per day':'');
   $('annual').textContent=AED(yr);$('total').textContent=AED(tot);
   $('vat').textContent=AED(tot*(1+CFG.vat/100));
-  $('dep').textContent=AED(m*CFG.dep);
+  var sh0=CFG.depsh/100,df=st.months>=3?1:st.months<=.5?sh0:sh0+(1-sh0)*(st.months-.5)/2.5;
+  var depAmt=Math.max(CFG.depmin,Math.round(m*CFG.dep*df/50)*50);
+  $('dep').textContent=AED(depAmt);$('depl').textContent='Security deposit ('+Math.round(df*100)+'% of the full deposit'+(depAmt===CFG.depmin&&m*CFG.dep*df<CFG.depmin?', minimum applies':'')+')';
   var listM=CFG.max*sh/12;var dsc=Math.max(0,1-m/listM);
   $('disc').textContent=(dsc*100).toFixed(1)+'%';
   var per=st.plan==='annual'?12:st.plan==='quarterly'?3:1;per=Math.min(per,st.months);
@@ -320,7 +324,7 @@ function render(){
   var tm=p.parts.term/(CFG.wt/100||1),sp=p.parts.space/((100-CFG.wt)/100||1);
   dr.innerHTML='<span class="lbl" style="margin:0">Strength of each discount lever</span>'+d('Term',tm)+d('Space',sp)+d('Payment plan',Math.min(1,p.parts.plan/.1));
   tables(st);budget(st);
-  window.__quote={minTot:minTot,sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:m*CFG.dep};
+  window.__quote={minTot:minTot,sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:depAmt};
 }
 function tables(st){
   var sq=usedSqft(),sh=Math.min(1,sq/CFG.sqft);
@@ -362,7 +366,7 @@ function setTU(u){if(u===tunit)return;var m=state().months;tunit=u;
 $('t-d').onclick=function(){setTU('days')};$('t-w').onclick=function(){setTU('weeks')};$('t-m').onclick=function(){setTU('months')};
 chips();
 // settings
-var KEYS=['min','max','sqft','cbm','wt','pq','pa','dep','mm','open','floor','vat'];
+var KEYS=['depmin','depsh','min','max','sqft','cbm','wt','pq','pa','dep','mm','open','floor','vat'];
 function loadSet(){KEYS.forEach(function(k){$('s_'+k).value=CFG[k]})}
 KEYS.forEach(function(k){$('s_'+k).oninput=function(){var v=parseFloat($('s_'+k).value);if(isNaN(v))return;
   if(k==='wt')v=Math.max(0,Math.min(100,v));
