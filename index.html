@@ -60,7 +60,7 @@ table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8
 .duebox button{margin-top:6px;padding:4px 10px;font-size:12px}
 </style></head><body>
 <header><img id="lg" alt="CityCube Warehousing"><div><h1>Storage Manager</h1><small>Inbound • Storage • Outbound • Tax Invoice • v29 Firebase</small><small id="sy" style="font-weight:700"></small></div>
-<nav><button id="t1" class="on">New Entry</button><button id="t2">Records (<span id="cnt">0</span>)</button><button id="t4">Layout</button><button id="t5" style="display:none">Collections</button><button id="t3">Settings</button><button id="sv" hidden>⬇ Save last print</button></nav></header>
+<nav><button id="t1" class="on">New Entry</button><button id="t2">Records (<span id="cnt">0</span>)</button><button id="t4">Layout</button><button id="t5" style="display:none">Collections</button><button id="t3">Settings</button><button id="tq" title="Open the quote calculator in a new tab">🧮 Quote calculator</button><button id="sv" hidden>⬇ Save last print</button></nav></header>
 <main>
 <section id="v1"><form onsubmit="return false">
 <fieldset><legend>Customer</legend><div class="g">
@@ -1571,6 +1571,7 @@ function quoteModal(){$("mdc").innerHTML=`<h3 style="margin-top:0;color:var(--nv
  $("mdc").oninput=go;$("mdc").onchange=go;go();
  $("qc").onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast("Quote copied – paste into WhatsApp or email")}catch(e){prompt("Copy this quote:",txt)}};$("qx").onclick=()=>{$("md").style.display="none";$("mdc").onchange=null}}
 $("qq").onclick=quoteModal;
+$("tq").onclick=()=>window.open("calculator.html","_blank");
 $("del").onclick=async()=>{const c=$("cid").value,r=recs.find(x=>x.cid==c);if(!adm||!fs)return toast("Only an admin can delete records");if(!r)return toast("Save the record first – nothing to delete");
  const warn=(r.invNo?"\n\nThis customer already has tax invoice "+r.invNo+". Invoices and receipts are kept in the accounts history and are NOT deleted.":"")+"\n\nThis cannot be undone.";
  if(!confirm("Delete record "+c+" – "+(r.name||"")+"?"+warn))return;
