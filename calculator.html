@@ -228,7 +228,7 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
         <div><label for="s_pq">Quarterly plan bonus (rate points %)</label><input type="number" id="s_pq" min="0" max="20" step="1"></div>
         <div><label for="s_pa">Annual plan bonus (rate points %)</label><input type="number" id="s_pa" min="0" max="20" step="1"></div>
         <div><label for="s_dep">Deposit (months of rent)</label><input type="number" id="s_dep" min="0" step="0.5"></div>
-        <div><label for="s_mm">Minimum monthly charge (AED)</label><input type="number" id="s_mm" step="50"></div>
+        <div><label for="s_mm">Minimum charge per contract (AED)</label><input type="number" id="s_mm" step="50"></div>
         <div><label for="s_open">Opening ask above recommended (%)</label><input type="number" id="s_open" min="0" max="30" step="1"></div>
         <div><label for="s_floor">Walk-away below recommended (%)</label><input type="number" id="s_floor" min="0" max="30" step="1"></div>
         <div><label for="s_vat">VAT (%)</label><input type="number" id="s_vat" min="0" step="0.5"></div>
@@ -265,7 +265,6 @@ function price(sh,months,plan){
   var monthly=r5(full*sh/12),minApplied=false;
   var lo=CFG.min*sh/12,hi=CFG.max*sh/12;
   monthly=Math.min(Math.max(monthly,Math.ceil(lo)),Math.ceil(hi));
-  if(monthly<CFG.mm){monthly=CFG.mm;minApplied=true}
   var eq=monthly*12/sh;
   return {s:s,parts:parts,full:full,monthly:monthly,eq:eq,minApplied:minApplied,lo:lo/1,hi:hi};
 }
@@ -289,7 +288,8 @@ function render(){
     ['monthly','annual','total','vat','dep','disc','upfront','rec','ask','flo'].forEach(function(i){$(i).textContent=i==='monthly'?'AED –':'–'});
     $('rates').textContent='';tables(st);return}
   var p=price(sh,st.months,st.plan);
-  var m=p.monthly,yr=m*12,tot=Math.round(m*st.months);
+  var m=p.monthly,yr=m*12,tot=Math.round(m*st.months),minTot=false;
+  if(tot<CFG.mm){tot=CFG.mm;minTot=true}
   $('monthly').innerHTML=AED(m)+' <small>/ month</small>';
   $('rates').textContent='AED '+N2(m/sq)+' per sq ft per month · AED '+N2(m/cb)+' per CBM per month · AED '+N2(yr/sq)+' per sq ft per year'+(st.months<1.5?' · AED '+N2(m/30)+' per day':'');
   $('annual').textContent=AED(yr);$('total').textContent=AED(tot);
@@ -299,14 +299,14 @@ function render(){
   $('disc').textContent=(dsc*100).toFixed(1)+'%';
   var per=st.plan==='annual'?12:st.plan==='quarterly'?3:1;per=Math.min(per,st.months);
   $('upl').textContent='First payment (rent for '+fmtT(per)+', excl. VAT)';
-  $('upfront').textContent=AED(m*per);
+  $('upfront').textContent=AED(per>=st.months-1e-9?tot:m*per);
   // corridor
   var ask=Math.min(r5(m*(1+CFG.open/100)),Math.ceil(CFG.max*sh/12));ask=Math.max(ask,m);
-  var flo=Math.max(r5(m*(1-CFG.floor/100)),Math.ceil(CFG.min*sh/12),CFG.mm);flo=Math.min(flo,m);
+  var flo=Math.max(r5(m*(1-CFG.floor/100)),Math.ceil(CFG.min*sh/12));flo=Math.min(flo,m);
   $('ask').textContent=AED(ask);$('rec').textContent=AED(m);$('flo').textContent=AED(flo);
   $('askn').textContent=ask===m?'At the list ceiling':'Start here, +'+CFG.open+'%';
   $('flon').textContent=flo===m?'At the rate floor':'Do not go below, -'+CFG.floor+'%';
-  if(p.minApplied)flag('The minimum monthly charge of '+AED(CFG.mm)+' applies to this small space.');
+  if(minTot)flag('The minimum charge of '+AED(CFG.mm)+' per contract applies. The contract total is raised to this amount.');
   if(p.s>=.999)flag('This is already the best rate available. Do not discount further.');
   if(st.plan!=='monthly'&&p.parts.plan===0)flag('The '+st.plan+' plan bonus needs a term of at least '+(st.plan==='annual'?'12':'3')+' months, so it is not applied.');
   if(st.months<3&&sh<.15)flag('Short term and small space: this is the highest rate band. A longer term lowers it.');
@@ -320,13 +320,13 @@ function render(){
   var tm=p.parts.term/(CFG.wt/100||1),sp=p.parts.space/((100-CFG.wt)/100||1);
   dr.innerHTML='<span class="lbl" style="margin:0">Strength of each discount lever</span>'+d('Term',tm)+d('Space',sp)+d('Payment plan',Math.min(1,p.parts.plan/.1));
   tables(st);budget(st);
-  window.__quote={sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:m*CFG.dep};
+  window.__quote={minTot:minTot,sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:m*CFG.dep};
 }
 function tables(st){
   var sq=usedSqft(),sh=Math.min(1,sq/CFG.sqft);
   var t='<tr><th>Term</th><th>Monthly</th><th>Per sq ft / month</th><th>Contract total</th></tr>';
   if(sq>0&&sq<=CFG.sqft){[1/30,7/30,14/30,1,3,6,9,12].forEach(function(mo){var p=price(sh,mo,st.plan);
-    t+='<tr'+(Math.abs(mo-st.months)<1e-6?' class="cur"':'')+'><td>'+fmtT(mo)+'</td><td>'+AED(p.monthly)+'</td><td>'+N2(p.monthly/sq)+'</td><td>'+AED(p.monthly*mo)+'</td></tr>'});}
+    t+='<tr'+(Math.abs(mo-st.months)<1e-6?' class="cur"':'')+'><td>'+fmtT(mo)+'</td><td>'+AED(p.monthly)+'</td><td>'+N2(p.monthly/sq)+'</td><td>'+AED(Math.max(Math.round(p.monthly*mo),CFG.mm))+'</td></tr>'});}
   $('tTerm').innerHTML=t;
   var s='<tr><th>Space</th><th>Share</th><th>Monthly</th><th>Per sq ft / month</th></tr>';
   [100,250,500,1000,1500,2000,2500,3000,3700].forEach(function(x){x=Math.min(x,CFG.sqft);var p=price(x/CFG.sqft,st.months,st.plan);
@@ -336,7 +336,6 @@ function tables(st){
 function budget(st){
   var b=+$('budget').value,out=$('budgetout');
   if(!(b>0)){out.textContent='Enter a monthly budget to see the most space it buys on this term and plan.';return}
-  if(b<CFG.mm){out.textContent='Below the minimum monthly charge of '+AED(CFG.mm)+'.';return}
   var lo=1/CFG.sqft,hi=1;
   if(price(1,st.months,st.plan).monthly<=b){out.textContent='This budget covers the entire facility ('+CFG.sqft+' sq ft / '+CFG.cbm+' CBM).';return}
   for(var i=0;i<40;i++){var mid=(lo+hi)/2;if(price(mid,st.months,st.plan).monthly<=b)lo=mid;else hi=mid}
@@ -403,7 +402,7 @@ $('pdf').onclick=function(){
   '<table><tr><th style="width:26%">Prepared for</th><td>'+esc($('q_name').value||'–')+'</td></tr><tr><th>Contact</th><td>'+esc($('q_contact').value||'–')+'</td></tr><tr><th>Goods to be stored</th><td>'+esc($('q_goods').value||'–')+'</td></tr></table>'+
   '<table><tr><th>Description</th><th class="n">Rate</th><th class="n">Amount (AED)</th></tr>'+
   '<tr><td>Warehouse storage space: '+sqTxt+'<br>Term: '+fmtT(q.months)+' · Payment: '+planTxt+'</td><td class="n">AED '+N2(q.m)+' / month<br>AED '+N2(q.m/q.sq)+' / sq ft / month</td><td class="n">'+N2(sub)+'</td></tr>'+
-  '<tr><td colspan="2" class="n">VAT '+CFG.vat+'%</td><td class="n">'+N2(vat)+'</td></tr>'+
+  (q.minTot?'<tr><td colspan="2" class="n">Includes minimum contract charge of AED '+N2(CFG.mm)+'</td><td class="n"></td></tr>':'')+'<tr><td colspan="2" class="n">VAT '+CFG.vat+'%</td><td class="n">'+N2(vat)+'</td></tr>'+
   '<tr class="tot"><td colspan="2" class="n">Total for the term (incl. VAT)</td><td class="n">'+N2(grand)+'</td></tr></table>'+
   '<table><tr><th>Refundable security deposit</th><td class="n">AED '+N2(q.dep)+'</td></tr></table>'+
   '<h3>Terms</h3><ol><li>Rent is payable in advance according to the payment plan above. VAT is charged at the prevailing rate.</li>'+
