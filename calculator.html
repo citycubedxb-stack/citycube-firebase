@@ -139,7 +139,7 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
           </div>
           <div style="flex:1;min-width:90px"><input type="number" id="termN" min="1" step="1" value="12" aria-label="Term length"></div>
         </div>
-        <input type="range" id="term" min="1" max="36" step="1" value="12" aria-label="Term slider">
+        <input type="range" id="term" min="1" max="12" step="1" value="12" aria-label="Term slider">
         <div class="chips" id="termchips"></div>
       </div>
       <div>
@@ -234,7 +234,7 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
         <div><label for="s_vat">VAT (%)</label><input type="number" id="s_vat" min="0" step="0.5"></div>
       </div>
       <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" id="reset">Restore defaults</button></div>
-      <p class="note">How the price is built: a term score (1 day = 0, 1 week = 0.02, 2 weeks = 0.04, 1 month = 0.08, 3 = 0.2, 6 = 0.45, 12 = 0.7, 24 = 0.9, 36 months or more = 1; a month is counted as 30 days) and a space score (share of the facility, slightly favouring smaller shares) are blended by the weight above, plus any payment-plan bonus, capped at 1. The full-facility annual rate slides from the maximum (score 0) to the minimum (score 1). The customer pays their share of that rate.</p>
+      <p class="note">How the price is built: a term score (1 day = 0, 1 week = 0.02, 2 weeks = 0.04, 1 month = 0.1, 3 = 0.35, 6 = 0.65, 9 = 0.85, 12 months = 1; the maximum term is 12 months and a month is counted as 30 days) and a space score (share of the facility, slightly favouring smaller shares) are blended by the weight above, plus any payment-plan bonus, capped at 1. The full-facility annual rate slides from the maximum (score 0) to the minimum (score 1). The customer pays their share of that rate.</p>
     </details>
   </section>
 </div>
@@ -246,13 +246,13 @@ details summary{cursor:pointer;font:600 1.05rem var(--f-head)}
 var DEF={min:0,max:0,sqft:0,cbm:0,wt:50,pq:3,pa:6,dep:1,mm:500,open:8,floor:5,vat:5};
 var CFG=Object.assign({},DEF);
 try{}catch(e){}
-var unit='sqft',tunit='months';var TU={days:{max:90,k:1/30},weeks:{max:52,k:7/30},months:{max:36,k:1}};
+var unit='sqft',tunit='months';var TU={days:{max:90,k:1/30},weeks:{max:52,k:7/30},months:{max:12,k:1}};
 function fmtT(m){var d=Math.round(m*30);if(m<1-1e-9){return d%7===0&&d>=7?(d/7)+(d===7?' week':' weeks'):d+(d===1?' day':' days')}var r=Math.round(m*10)/10;return r+(r===1?' month':' months')}
 var $=function(i){return document.getElementById(i)};
 var AED=function(n){return 'AED '+Math.round(n).toLocaleString('en-US')};
 var N2=function(n){return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})};
-var TP=[[1/30,0],[.25,.02],[.5,.04],[1,.08],[3,.2],[6,.45],[12,.7],[24,.9],[36,1]];
-function tScore(m){if(m<=TP[0][0])return 0;if(m>=36)return 1;for(var i=1;i<TP.length;i++){if(m<=TP[i][0]){var a=TP[i-1],b=TP[i];return a[1]+(b[1]-a[1])*(m-a[0])/(b[0]-a[0])}}return 1}
+var MAXM=12;var TP=[[1/30,0],[.25,.02],[.5,.04],[1,.1],[3,.35],[6,.65],[9,.85],[12,1]];
+function tScore(m){if(m<=TP[0][0])return 0;if(m>=MAXM)return 1;for(var i=1;i<TP.length;i++){if(m<=TP[i][0]){var a=TP[i-1],b=TP[i];return a[1]+(b[1]-a[1])*(m-a[0])/(b[0]-a[0])}}return 1}
 function vScore(sh){return Math.pow(Math.max(0,Math.min(1,sh)),.8)}
 function bonus(plan,m){return (plan==='annual'&&m>=12?CFG.pa:plan==='quarterly'&&m>=3?CFG.pq:0)/100}
 function r5(x){return Math.round(x/5)*5}
@@ -272,7 +272,7 @@ function price(sh,months,plan){
 function usedSqft(){var v=+$('space').value||0;return unit==='sqft'?v:v*CFG.sqft/CFG.cbm}
 function usedCbm(){var v=+$('space').value||0;return unit==='cbm'?v:v*CFG.cbm/CFG.sqft}
 function fromSqft(sq){return unit==='sqft'?sq:sq*CFG.cbm/CFG.sqft}
-function state(){return {months:Math.max(1/30,(+$('termN').value||1)*TU[tunit].k),plan:$('plan').value}}
+function state(){return {months:Math.min(MAXM,Math.max(1/30,(+$('termN').value||1)*TU[tunit].k)),plan:$('plan').value}}
 function render(){
   var st=state(),sq=usedSqft(),cb=usedCbm(),sh=Math.min(1,sq/CFG.sqft);
   var capU=unit==='sqft'?CFG.sqft:CFG.cbm;
@@ -325,7 +325,7 @@ function render(){
 function tables(st){
   var sq=usedSqft(),sh=Math.min(1,sq/CFG.sqft);
   var t='<tr><th>Term</th><th>Monthly</th><th>Per sq ft / month</th><th>Contract total</th></tr>';
-  if(sq>0&&sq<=CFG.sqft){[1/30,7/30,14/30,1,3,6,12,24,36].forEach(function(mo){var p=price(sh,mo,st.plan);
+  if(sq>0&&sq<=CFG.sqft){[1/30,7/30,14/30,1,3,6,9,12].forEach(function(mo){var p=price(sh,mo,st.plan);
     t+='<tr'+(Math.abs(mo-st.months)<1e-6?' class="cur"':'')+'><td>'+fmtT(mo)+'</td><td>'+AED(p.monthly)+'</td><td>'+N2(p.monthly/sq)+'</td><td>'+AED(p.monthly*mo)+'</td></tr>'});}
   $('tTerm').innerHTML=t;
   var s='<tr><th>Space</th><th>Share</th><th>Monthly</th><th>Per sq ft / month</th></tr>';
@@ -355,7 +355,7 @@ $('spaceR').oninput=function(){$('space').value=$('spaceR').value;render()};
 $('plan').onchange=render;$('budget').oninput=render;
 $('term').oninput=function(){$('termN').value=$('term').value;render()};
 $('termN').oninput=function(){var v=+$('termN').value;if(v>0)$('term').value=Math.min(v,TU[tunit].max);render()};
-var CH={days:[1,3,7,14,21],weeks:[1,2,3,4,6,8],months:[1,3,6,12,18,24,36]};
+var CH={days:[1,3,7,14,21],weeks:[1,2,3,4,6,8],months:[1,3,6,9,12]};
 function chips(){var c=$('termchips');c.innerHTML='';CH[tunit].forEach(function(v){var b=document.createElement('button');b.type='button';b.className='chip';b.dataset.v=v;b.textContent=v+' '+(tunit==='months'?(v===1?'month':'mo'):tunit==='weeks'?(v===1?'week':'wks'):(v===1?'day':'days'));b.onclick=function(){$('termN').value=v;$('term').value=Math.min(v,TU[tunit].max);render()};c.appendChild(b)})}
 function setTU(u){if(u===tunit)return;var m=state().months;tunit=u;
   ['d','w','m'].forEach(function(k){$('t-'+k).setAttribute('aria-pressed',String({d:'days',w:'weeks',m:'months'}[k]===u))});
