@@ -447,11 +447,13 @@ function boot(){
   if(!c||!c.apiKey){gate('<h2>One-time setup needed</h2><p>Open the <a href="./">Storage Manager</a> on this device, sign in once, then reopen this calculator.</p>');return}
   var V='10.12.2';
   ['app','auth','firestore'].reduce(function(p,f){return p.then(function(){return loadJs('https://www.gstatic.com/firebasejs/'+V+'/firebase-'+f+'-compat.js')})},Promise.resolve()).then(function(){
-    firebase.initializeApp(c);fsdb=firebase.firestore();var au=firebase.auth();var L=firebase.auth.Auth.Persistence;
-    au.setPersistence(L.LOCAL).catch(function(){return au.setPersistence(L.NONE)}).catch(function(){}).then(function(){
-      au.onAuthStateChanged(function(u){if(!u){loginGate();return}
-        me=u.email||'';
-        fsdb.doc('admins/'+me).get().then(function(d){ADM=d.exists}).catch(function(){ADM=false}).then(listen)})})
+    firebase.initializeApp(c);fsdb=firebase.firestore();var au=firebase.auth();var got=false;
+    gate('<p>Signing in…</p>');
+    setTimeout(function(){if(!got)loginGate('Still connecting… you can sign in below. If this keeps happening, open the Storage Manager first, sign in there, then reopen this page.')},3500);
+    au.onAuthStateChanged(function(u){got=true;if(!u){loginGate();return}
+      me=u.email||'';gate('<p>Reading rate card…</p>');
+      var done=false;setTimeout(function(){if(!done)gate('<h2>Taking too long</h2><p>Could not reach the database. Check the internet connection and reload. If it keeps happening, open the Storage Manager and sign in there first.</p>')},10000);
+      fsdb.doc('admins/'+me).get().then(function(d){ADM=d.exists}).catch(function(){ADM=false}).then(function(){done=true;listen()})})
   }).catch(function(e){gate('<h2>Could not load</h2><p>'+esc(e.message)+'. Check the internet connection and reload.</p>')})}
 boot();
 })();
