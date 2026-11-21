@@ -416,7 +416,7 @@ $('pdf').onclick=function(){
   $('copied').textContent='If no print dialog opened, open this file in Chrome and try again.';setTimeout(function(){$('copied').textContent=''},5000);
 };
 
-var ADM=false,SM={},me='',fsdb=null,booted=false,saveT=0;
+var STEP='',ADM=false,SM={},me='',fsdb=null,booted=false,saveT=0;
 function gate(h){var g=$('gate');g.hidden=false;g.innerHTML='<div class="gbox">'+h+'</div>'}
 function cfgOK(c){return c&&c.min>0&&c.max>c.min&&c.sqft>0&&c.cbm>0}
 function saveCfg(){if(!ADM||!fsdb||!cfgOK(CFG))return;clearTimeout(saveT);saveT=setTimeout(function(){fsdb.doc('settings/calc').set(Object.assign({},CFG,{by:me,at:new Date().toISOString()})).catch(function(e){$('copied').textContent='Could not save rate card: '+(e.message||e.code)})},600)}
@@ -447,13 +447,13 @@ function boot(){
   if(!c||!c.apiKey){gate('<h2>One-time setup needed</h2><p>Open the <a href="./">Storage Manager</a> on this device, sign in once, then reopen this calculator.</p>');return}
   var V='10.12.2';
   ['app','auth','firestore'].reduce(function(p,f){return p.then(function(){return loadJs('https://www.gstatic.com/firebasejs/'+V+'/firebase-'+f+'-compat.js')})},Promise.resolve()).then(function(){
-    firebase.initializeApp(c);fsdb=firebase.firestore();var au=firebase.auth();var got=false;
+    firebase.initializeApp(c);fsdb=firebase.firestore();try{fsdb.settings({experimentalAutoDetectLongPolling:true,merge:true})}catch(e){}var au=firebase.auth();var got=false;
     gate('<p>Signing in…</p>');
     setTimeout(function(){if(!got)loginGate('Still connecting… you can sign in below. If this keeps happening, open the Storage Manager first, sign in there, then reopen this page.')},3500);
     au.onAuthStateChanged(function(u){got=true;if(!u){loginGate();return}
       me=u.email||'';gate('<p>Reading rate card…</p>');
-      var done=false;setTimeout(function(){if(!done)gate('<h2>Taking too long</h2><p>Could not reach the database. Check the internet connection and reload. If it keeps happening, open the Storage Manager and sign in there first.</p>')},10000);
-      fsdb.doc('admins/'+me).get().then(function(d){ADM=d.exists}).catch(function(){ADM=false}).then(function(){done=true;listen()})})
+      STEP='checking your access';setTimeout(function(){if(!booted&&!$('gate').querySelector('input,h2'))gate('<h2>Taking too long</h2><p>Stopped while '+STEP+'. Check the internet connection and reload. If it keeps happening, tell your administrator which step it stopped at.</p>')},10000);
+      fsdb.doc('admins/'+me).get().then(function(d){ADM=d.exists}).catch(function(){ADM=false}).then(function(){STEP='reading the rate card';listen()})})
   }).catch(function(e){gate('<h2>Could not load</h2><p>'+esc(e.message)+'. Check the internet connection and reload.</p>')})}
 boot();
 })();
