@@ -257,6 +257,14 @@ var MAXM=12;var TP=[[1/30,0],[.25,.02],[.5,.04],[1,.1],[3,.35],[6,.65],[9,.85],[
 function tScore(m){if(m<=TP[0][0])return 0;if(m>=MAXM)return 1;for(var i=1;i<TP.length;i++){if(m<=TP[i][0]){var a=TP[i-1],b=TP[i];return a[1]+(b[1]-a[1])*(m-a[0])/(b[0]-a[0])}}return 1}
 function vScore(sh){return Math.pow(Math.max(0,Math.min(1,sh)),.8)}
 function bonus(plan,m){return (plan==='annual'&&m>=12?CFG.pa:plan==='quarterly'&&m>=3?CFG.pq:0)/100}
+function payPlan(mo,plan,tot){var per=plan==='annual'?12:plan==='quarterly'?3:1;
+  if(mo<=1+1e-9||per>=mo-1e-9)return{label:'Full amount in advance (single payment)',list:[tot]};
+  var n=Math.ceil(mo/per-1e-9),list=[],rest=tot,unit=tot*per/mo;
+  for(var i=0;i<n-1;i++){var a=Math.round(unit);list.push(a);rest-=a}list.push(rest);
+  var w=per===1?'Monthly':per===3?'Quarterly':'Annual';
+  return{label:w+' in advance ('+n+' payments)',list:list}}
+function schedTxt(l){if(l.length===1)return 'AED '+Math.round(l[0]).toLocaleString('en-US');var same=l.slice(0,-1).every(function(x){return x===l[0]});
+  return same?(l[l.length-1]===l[0]?l.length:l.length-1)+' × AED '+Math.round(l[0]).toLocaleString('en-US')+(l[l.length-1]!==l[0]?' + final AED '+Math.round(l[l.length-1]).toLocaleString('en-US'):''):l.map(function(x){return Math.round(x).toLocaleString('en-US')}).join(' + ')}
 function r5(x){return Math.round(x/5)*5}
 // price for a share of the facility
 function price(sh,months,plan){
@@ -301,9 +309,9 @@ function render(){
   $('dep').textContent=AED(depAmt);$('depl').textContent='Security deposit ('+Math.round(df*100)+'% of the full deposit'+(depAmt===CFG.depmin&&m*CFG.dep*df<CFG.depmin?', minimum applies':'')+')';
   var listM=CFG.max*sh/12;var dsc=Math.max(0,1-m/listM);
   $('disc').textContent=(dsc*100).toFixed(1)+'%';
-  var per=st.plan==='annual'?12:st.plan==='quarterly'?3:1;per=Math.min(per,st.months);
-  $('upl').textContent='First payment (rent for '+fmtT(per)+', excl. VAT)';
-  $('upfront').textContent=AED(per>=st.months-1e-9?tot:m*per);
+  var pp=payPlan(st.months,st.plan,tot);
+  $('upl').textContent='Payment: '+pp.label.replace(' in advance','')+', excl. VAT ('+schedTxt(pp.list)+')';
+  $('upfront').textContent=AED(pp.list[0]);
   // corridor
   var ask=Math.min(r5(m*(1+CFG.open/100)),Math.ceil(CFG.max*sh/12));ask=Math.max(ask,m);
   var flo=Math.max(r5(m*(1-CFG.floor/100)),Math.ceil(CFG.min*sh/12));flo=Math.min(flo,m);
@@ -324,7 +332,7 @@ function render(){
   var tm=p.parts.term/(CFG.wt/100||1),sp=p.parts.space/((100-CFG.wt)/100||1);
   dr.innerHTML='<span class="lbl" style="margin:0">Strength of each discount lever</span>'+d('Term',tm)+d('Space',sp)+d('Payment plan',Math.min(1,p.parts.plan/.1));
   tables(st);budget(st);
-  window.__quote={minTot:minTot,sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:depAmt};
+  window.__quote={pp:pp,minTot:minTot,sq:sq,cb:cb,m:m,yr:yr,tot:tot,months:st.months,plan:st.plan,ask:ask,flo:flo,dep:depAmt};
 }
 function tables(st){
   var sq=usedSqft(),sh=Math.min(1,sq/CFG.sqft);
@@ -377,10 +385,10 @@ $('reset').onclick=function(){['wt','pq','pa','dep','mm','open','floor','vat'].f
 // copy
 $('copy').onclick=function(){
   var q=window.__quote;if(!q){$('copied').textContent='Enter a valid space first.';return}
-  var planTxt={monthly:'monthly in advance',quarterly:'quarterly in advance',annual:'annual in advance'}[q.plan];
+  var planTxt=q.pp.label.toLowerCase();
   var t='CityCube Warehousing – storage quotation\n'+
    'Space: '+Math.round(q.sq).toLocaleString('en-US')+' sq ft ('+q.cb.toFixed(1)+' CBM)\n'+
-   'Term: '+fmtT(q.months)+', payable '+planTxt+'\n'+
+   'Term: '+fmtT(q.months)+', payment: '+planTxt+' ('+schedTxt(q.pp.list)+' excl. VAT)\n'+
    'Monthly rent: '+AED(q.m)+' (excl. VAT)\n'+
    'Annual rent: '+AED(q.yr)+'\n'+
    'Contract total: '+AED(q.tot)+' (VAT '+CFG.vat+'% extra)\n'+
@@ -398,22 +406,23 @@ $('pdf').onclick=function(){
   var now=new Date(),vd=Math.max(1,+$('q_valid').value||15),until=new Date(now.getTime()+vd*864e5);
   var pad=function(n){return String(n).padStart(2,'0')};
   var no='QT-'+now.getFullYear().toString().slice(2)+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
-  var planTxt={monthly:'Monthly in advance',quarterly:'Quarterly in advance',annual:'Annual in advance'}[q.plan];
+  var planTxt=q.pp.label;
   var sub=q.tot,vat=sub*CFG.vat/100,grand=sub+vat;
   var sqTxt=Math.round(q.sq).toLocaleString('en-US')+' sq ft ('+q.cb.toFixed(1)+' CBM)';
   var h='<div class="qh"><div><img src="'+LOGO+'" alt="CityCube"></div><div class="qr"><h1>QUOTATION</h1><b>'+esc(no)+'</b><br>Date: '+fdate(now)+'<br>Valid until: '+fdate(until)+'</div></div>'+
   '<p style="margin:10px 0 0"><b>CityCube Warehousing &amp; Storage Management &amp; Operations LLC</b><br>'+esc(SM.addr||'Dubai, UAE')+' · '+esc(SM.ph||'+971 50 566 2477')+(SM.em?' · '+esc(SM.em):'')+' · citycubedxb.ae'+(SM.trn?'<br>TRN: '+esc(SM.trn):'')+'</p>'+
   '<table><tr><th style="width:26%">Prepared for</th><td>'+esc($('q_name').value||'–')+'</td></tr><tr><th>Contact</th><td>'+esc($('q_contact').value||'–')+'</td></tr><tr><th>Goods to be stored</th><td>'+esc($('q_goods').value||'–')+'</td></tr></table>'+
   '<table><tr><th>Description</th><th class="n">Rate</th><th class="n">Amount (AED)</th></tr>'+
-  '<tr><td>Warehouse storage space: '+sqTxt+'<br>Term: '+fmtT(q.months)+' · Payment: '+planTxt+'</td><td class="n">AED '+N2(q.m)+' / month<br>AED '+N2(q.m/q.sq)+' / sq ft / month</td><td class="n">'+N2(sub)+'</td></tr>'+
+  '<tr><td>Warehouse storage space: '+sqTxt+'<br>Term: '+fmtT(q.months)+' · Payment: '+planTxt+'</td><td class="n">'+(q.minTot?'Minimum contract charge':'AED '+N2(q.m)+' / month<br>AED '+N2(q.m/q.sq)+' / sq ft / month')+'</td><td class="n">'+N2(sub)+'</td></tr>'+
   (q.minTot?'<tr><td colspan="2" class="n">Includes minimum contract charge of AED '+N2(CFG.mm)+'</td><td class="n"></td></tr>':'')+'<tr><td colspan="2" class="n">VAT '+CFG.vat+'%</td><td class="n">'+N2(vat)+'</td></tr>'+
   '<tr class="tot"><td colspan="2" class="n">Total for the term (incl. VAT)</td><td class="n">'+N2(grand)+'</td></tr></table>'+
+  '<table><tr><th style="width:26%">Payment schedule</th><td>'+esc(q.pp.list.length===1?'Single payment of AED '+N2(q.pp.list[0])+' plus VAT, before the storage start date.':q.pp.list.length+' payments in advance, each due before the start of its period: '+q.pp.list.map(function(x){return 'AED '+N2(x)}).join(', ')+' (plus VAT).')+'</td></tr></table>'+
   '<table><tr><th>Refundable security deposit</th><td class="n">AED '+N2(q.dep)+'</td></tr></table>'+
-  '<h3>Terms</h3><ol><li>Rent is payable in advance according to the payment plan above. VAT is charged at the prevailing rate.</li>'+
+  '<h3>Terms</h3><ol><li>Rent is payable in advance according to the payment schedule above, and the security deposit is payable before goods are received. VAT is charged at the prevailing rate.</li>'+
   '<li>The security deposit is refundable at the end of the storage period, subject to the terms of the Storage Services Agreement.</li>'+
   '<li>This quotation is valid for '+vd+' days from the date above. Space is subject to availability when the agreement is signed.</li>'+
   '<li>Goods are stored subject to the terms of the Storage Services Agreement (intake agreement) signed with the Company.</li>'+
-  '<li>Handling, forklift and other services, if required, are charged separately.</li></ol>'+
+  '<li>Handling, forklift and other services, if required, are charged separately. Overdue amounts are dealt with as set out in the Storage Services Agreement.</li></ol>'+
   '<div class="fine">This is a computer-generated quotation and is valid without signature or company stamp.<br>هذا عرض سعر صادر إلكترونياً ولا يتطلب توقيعاً أو ختماً.</div>';
   $('qsheet').innerHTML=h;
   try{window.print()}catch(e){}
