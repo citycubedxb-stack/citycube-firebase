@@ -114,6 +114,10 @@ td.qed{white-space:normal;text-align:left;background:var(--bg)}
 .qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end}
 .qgrid input,.qgrid select,.qgrid textarea,.tb input,.tb select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font:inherit;color:var(--fg)}
 .tb{display:flex;gap:10px;flex-wrap:wrap}.tb>*{flex:1;min-width:150px}
+.chks{display:grid;gap:6px;margin-bottom:8px}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:.88rem;text-transform:none;letter-spacing:0;color:var(--fg);font-weight:400;margin:0}
+.chk input{margin-top:3px;accent-color:var(--navy)}
+#qsheet ul{margin:0;padding-left:18px;font-size:12px}
 </style>
 
 <div class="wrap">
@@ -215,6 +219,11 @@ td.qed{white-space:normal;text-align:left;background:var(--bg)}
             <button type="button" id="lv-flo" data-lv="flo" aria-pressed="false">Walk-away floor</button>
           </div>
         </div>
+        <div>
+          <span class="lbl">Additional information printed on the quotation</span>
+          <div class="chks" id="qnotes"></div>
+          <textarea id="q_extra" rows="2" placeholder="Other notes for this customer (one per line)" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;color:var(--fg)"></textarea>
+        </div>
         <div class="note" id="curq"></div>
       </div>
       <div class="row">
@@ -268,6 +277,7 @@ td.qed{white-space:normal;text-align:left;background:var(--bg)}
         <div><label for="s_mm">Minimum charge per contract (AED)</label><input type="number" id="s_mm" step="50"></div>
         <div><label for="s_open">Opening ask above recommended (%)</label><input type="number" id="s_open" min="0" max="30" step="1"></div>
         <div><label for="s_floor">Walk-away below recommended (%)</label><input type="number" id="s_floor" min="0" max="30" step="1"></div>
+        <div style="grid-column:1/-1"><label for="s_notes">Standard additional information on quotations (one item per line; staff can untick items per quotation)</label><textarea id="s_notes" rows="6" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;color:var(--fg)"></textarea></div>
         <div><label for="s_vat">VAT (%)</label><input type="number" id="s_vat" min="0" step="0.5"></div>
       </div>
       <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" id="reset">Restore defaults</button></div>
@@ -280,7 +290,7 @@ td.qed{white-space:normal;text-align:left;background:var(--bg)}
 <div id="qsheet" aria-hidden="true"></div>
 <script>
 (function(){
-var DEF={min:0,max:0,sqft:0,cbm:0,wt:50,pq:3,pa:6,dep:1,depmin:1000,depsh:25,mm:500,open:8,floor:5,vat:5};
+var DEF={notes:'DEWA (electricity and water) charges, where applicable, are charged extra at actual consumption.\nHandling, forklift, loading, unloading, packing and labelling are charged separately.\nGoods insurance is not included. The customer should insure the goods unless agreed otherwise in writing.\nHazardous, flammable, perishable or illegal goods are not accepted.\nWarehouse access is by appointment during working hours. Out-of-hours access may be charged.\nCharges are for the space reserved. Any additional space used is charged extra.',min:0,max:0,sqft:0,cbm:0,wt:50,pq:3,pa:6,dep:1,depmin:1000,depsh:25,mm:500,open:8,floor:5,vat:5};
 var CFG=Object.assign({},DEF);
 try{}catch(e){}
 var LEVEL='rec',curQ=null,Q={};var unit='sqft',tunit='months';
@@ -422,13 +432,13 @@ $('t-d').onclick=function(){setTU('days')};$('t-w').onclick=function(){setTU('we
 chips();
 // settings
 var KEYS=['depmin','depsh','min','max','sqft','cbm','wt','pq','pa','dep','mm','open','floor','vat'];
-function loadSet(){KEYS.forEach(function(k){$('s_'+k).value=CFG[k]})}
+function loadSet(){KEYS.forEach(function(k){$('s_'+k).value=CFG[k]});if(document.activeElement!==$('s_notes'))$('s_notes').value=CFG.notes||'';renderNotes()}
 KEYS.forEach(function(k){$('s_'+k).oninput=function(){var v=parseFloat($('s_'+k).value);if(isNaN(v))return;
   if(k==='wt')v=Math.max(0,Math.min(100,v));
   CFG[k]=v;
   if(CFG.max<=CFG.min||CFG.sqft<=0||CFG.cbm<=0){return}
   saveCfg();render()}});
-$('reset').onclick=function(){['wt','pq','pa','dep','mm','open','floor','vat'].forEach(function(k){CFG[k]=DEF[k]});saveCfg();loadSet();render()};
+$('reset').onclick=function(){['wt','pq','pa','dep','mm','open','floor','vat','notes'].forEach(function(k){CFG[k]=DEF[k]});saveCfg();loadSet();render()};
 // copy
 $('copy').onclick=function(){
   var q=window.__quote;if(!q){$('copied').textContent='Enter a valid space first.';return}
@@ -439,7 +449,7 @@ $('copy').onclick=function(){
    'Monthly rent: '+AED(q.m)+' (excl. VAT)\n'+
    'Annual rent: '+AED(q.yr)+'\n'+
    'Contract total: '+AED(q.tot)+' (VAT '+CFG.vat+'% extra)\n'+
-   'Security deposit: '+AED(q.dep)+' (refundable)';
+   'Security deposit: '+AED(q.dep)+' (refundable)'+(getNotes().length?'\n\nAdditional information:\n'+getNotes().map(function(t){return '- '+t}).join('\n'):'');
   function ok(){$('copied').textContent='Copied.';setTimeout(function(){$('copied').textContent=''},2000)}
   function fb(){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');ok()}catch(e){$('copied').textContent='Select and copy manually.'}ta.remove()}
   try{navigator.clipboard.writeText(t).then(ok,fb)}catch(e){fb()}
@@ -464,6 +474,7 @@ $('pdf').onclick=async function(){
   '<tr class="tot"><td colspan="2" class="n">Total for the term (incl. VAT)</td><td class="n">'+N2(grand)+'</td></tr></table>'+
   '<table><tr><th style="width:26%">Payment schedule</th><td>'+esc(schedDesc(q.pp.list))+'</td></tr></table>'+
   '<table><tr><th>Refundable security deposit</th><td class="n">AED '+N2(q.dep)+'</td></tr></table>'+
+  (getNotes().length?'<h3>Additional information</h3><ul>'+getNotes().map(function(t){return '<li>'+esc(t)+'</li>'}).join('')+'</ul>':'')+
   '<h3>Terms</h3><ol><li>Rent is payable in advance according to the payment schedule above, and the security deposit is payable before goods are received. VAT is charged at the prevailing rate.</li>'+
   '<li>The security deposit is refundable at the end of the storage period, subject to the terms of the Storage Services Agreement.</li>'+
   '<li>This quotation is valid for '+vd+' days from the date above. Space is subject to availability when the agreement is signed.</li>'+
@@ -477,6 +488,15 @@ $('pdf').onclick=async function(){
 };
 
 
+/* ---------- additional information ---------- */
+var noteOff={};
+function noteLines(){return String(CFG.notes||'').split('\n').map(function(x){return x.trim()}).filter(Boolean)}
+function renderNotes(){var c=$('qnotes');if(!c)return;c.innerHTML='';
+  noteLines().forEach(function(t){var l=document.createElement('label');l.className='chk';var i=document.createElement('input');i.type='checkbox';i.checked=!noteOff[t];
+    i.onchange=function(){noteOff[t]=!i.checked};l.appendChild(i);l.appendChild(document.createTextNode(t));c.appendChild(l)})}
+function getNotes(){var a=noteLines().filter(function(t){return !noteOff[t]});
+  return a.concat(String($('q_extra').value||'').split('\n').map(function(x){return x.trim()}).filter(Boolean))}
+$('s_notes').oninput=function(){CFG.notes=$('s_notes').value;saveCfg();renderNotes()};
 /* ---------- saved quotations: save, number, track ---------- */
 var pad2=function(n){return String(n).padStart(2,'0')};
 function ymd(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())}
@@ -499,7 +519,7 @@ function buildDoc(q,name,contact,ex,status){
   var keepSt=ex&&['accepted','converted','declined','superseded'].indexOf(ex.status)>-1;
   return {id:ex?ex.id:'',no:ex?ex.no:'',status:keepSt?ex.status:status,date:base,validUntil:addDays(base,vd),followUp:(ex&&ex.followUp)||addDays(T,3),
     cust:{ctype:'Company',company:name,name:name,mob:isMail?'':contact,email:isMail?contact:''},
-    goods:{desc:$('q_goods').value.trim(),flags:[]},st:st,extras:extras,est:[],insPct:'',dep:q.dep,by:me,noTier:true,notes:'',
+    goods:{desc:$('q_goods').value.trim(),flags:[]},st:st,extras:extras,est:[],insPct:'',dep:q.dep,by:me,noTier:true,notes:getNotes().join('\n'),
     lostReason:(ex&&ex.lostReason)||'',followNote:(ex&&ex.followNote)||'',
     cq:{src:'calculator',level:q.lvl,recMonthly:q.rec,askMonthly:q.ask,floorMonthly:q.flo,monthly:q.m,months:q.months,plan:q.plan,pay:q.pp.label,
         sqft:+q.sq.toFixed(2),cbm:+q.cb.toFixed(2),total:q.tot,totalVat:Math.round(q.totVat*100)/100,vatPct:CFG.vat,deposit:q.dep,minCharge:!!q.minTot}};
@@ -524,7 +544,7 @@ async function saveQuote(status){
   }catch(e){throw new Error(e.code==='permission-denied'?'Permission denied. The Firestore rule for the quotes collection is missing.':(e.message||e.code))}
   curQ=doc.id;Q[doc.id]=doc;updateCurQ();renderQ();return doc}
 $('qsave').onclick=async function(){try{$('copied').textContent='Saving…';var d=await saveQuote('draft');$('copied').textContent='Saved as '+d.no+'.'}catch(e){$('copied').textContent='Not saved: '+(e.message||e.code)}};
-$('qnew').onclick=function(){curQ=null;['q_name','q_contact','q_goods'].forEach(function(i){$(i).value=''});$('q_start').value=addDays(todayS(),7);LEVEL='rec';updateCurQ();render()};
+$('qnew').onclick=function(){curQ=null;['q_name','q_contact','q_goods','q_extra'].forEach(function(i){$(i).value=''});noteOff={};renderNotes();$('q_start').value=addDays(todayS(),7);LEVEL='rec';updateCurQ();render()};
 $('q_start').value=addDays(todayS(),7);
 function loadQuote(id){var q=Q[id],c=q&&q.cq;if(!c)return;curQ=id;
   if(unit!=='sqft')setUnit('sqft');
@@ -535,6 +555,7 @@ function loadQuote(id){var q=Q[id],c=q&&q.cq;if(!c)return;curQ=id;
   $('plan').value=c.plan;LEVEL=c.level||'rec';
   $('q_name').value=(q.cust&&(q.cust.company||q.cust.name))||'';$('q_contact').value=(q.cust&&(q.cust.email||q.cust.mob))||'';$('q_goods').value=(q.goods&&q.goods.desc)||'';
   if(q.st&&q.st.start)$('q_start').value=q.st.start;
+  var nl=String(q.notes||'').split('\n').map(function(x){return x.trim()}).filter(Boolean),std=noteLines();noteOff={};std.forEach(function(t){if(nl.indexOf(t)<0)noteOff[t]=true});$('q_extra').value=nl.filter(function(t){return std.indexOf(t)<0}).join('\n');renderNotes();
   updateCurQ();render();window.scrollTo({top:0,behavior:'smooth'})}
 // ---- tracking view ----
 var openQ=null;
